@@ -1,53 +1,66 @@
+# 01_filter_data.py
 import pandas as pd
+import numpy as np
 
 def filter_craters(file_path, output_path):
+
     try:
         df = pd.read_csv(file_path)
-        print(f"Data loaded successfully: {len(df):,} craters")
+        print(f"[Info] 원본 데이터 로드 완료: 총 {len(df):,}개")
     except FileNotFoundError:
-        print("File Not Found. Please check the path.")
+        print("[Error] 파일을 찾을 수 없습니다.")
         return
     
+    # 100km x 100km
     MIN_LAT = 40.0
     MAX_LAT = 43.3
     MIN_LON = 196.7
     MAX_LON = 200.0
 
-    MIN_DIAM_KM = 1.0
-    MAX_DIAM_KM = 40.0
+    # size limit (semi-major axis)
+    MAX_AXIS_KM = 50.0
 
-    # MIN_ARC_VALIDITY = 0.9
-    # MAX_ELLIPTICITY = 1.2
+    # quality limit
+    MIN_ARC = 0.8
+    MIN_PTS = 5
+    MAX_ELLIP = 1.2
 
-    col_lat = 'LAT_CIRC_IMG'
-    col_lon = 'LON_CIRC_IMG'
-    col_diam = 'DIAM_CIRC_IMG'
-    # col_arc = 'ARC_IMG'
-    # col_ellip = 'ELLIPTICITY_ROBUST'
+    df = df.dropna(subset=['LAT_ELLI_IMG', 'LON_ELLI_IMG', 'DIAM_ELLI_MAJOR_IMG', 'DIAM_ELLI_ANGLE_IMG'])
 
     filtered_df = df[
-        (df[col_lat] >= MIN_LAT) & (df[col_lat] <= MAX_LAT) &
-        (df[col_lon] >= MIN_LON) & (df[col_lon] <= MAX_LON) &
-        (df[col_diam] >= MIN_DIAM_KM) & (df[col_diam] < MAX_DIAM_KM)
-        # (df[col_arc] >= MIN_ARC_VALIDITY) & 
-        # (df[col_ellip] <= MAX_ELLIPTICITY)
+        # location filter
+        (df['LAT_ELLI_IMG'] >= MIN_LAT) & (df['LAT_ELLI_IMG'] <= MAX_LAT) &
+        (df['LON_ELLI_IMG'] >= MIN_LON) & (df['LON_ELLI_IMG'] <= MAX_LON) &
+        
+        # size filter (semi-major axis)
+        (df['DIAM_ELLI_MAJOR_IMG'] < MAX_AXIS_KM) &
+        
+        # quality filter
+        (df['ARC_IMG'] >= MIN_ARC) & 
+        (df['PTS_RIM_IMG'] >= MIN_PTS) &
+        (df['DIAM_ELLI_ELLIP_IMG'] <= MAX_ELLIP)
     ].copy()
+
+
     
-    print("\nResult:")
-    print(f" - Spatial Range: Lat {MIN_LAT}~{MAX_LAT}, Lon {MIN_LON}~{MAX_LON}")
-    print(f" - Scale Range: {MIN_DIAM_KM}km ~ {MAX_DIAM_KM}km")
-    print(f" - Num. Craters: {len(filtered_df):,}개")
+    print("\nFiltered Data:")
+    print(f" - Range: Lat {MIN_LAT}~{MAX_LAT}, Lon {MIN_LON}~{MAX_LON}")
+    print(f" - Size: < {MAX_AXIS_KM} km")
+    print(f" - Extracted Craters: {len(filtered_df):,}개")
     
     filtered_df.reset_index(drop=True, inplace=True)
     
-    cols_to_save = ['CRATER_ID', col_lat, col_lon, col_diam, 'ANGLE_CIRC_IMG']
-    available_cols = [c for c in cols_to_save if c in filtered_df.columns]
+    cols_to_save = [
+        'CRATER_ID', 
+        'LAT_ELLI_IMG', 'LON_ELLI_IMG',       # 중심 좌표
+        'DIAM_ELLI_MAJOR_IMG',                # 장축 지름 (2a)
+        'DIAM_ELLI_MINOR_IMG',                # 단축 지름 (2b)
+        'DIAM_ELLI_ANGLE_IMG'                 # 회전각 (Theta)
+    ]
     
-    filtered_df[available_cols].to_csv(output_path, index=False)
-    print(f"\nFiltered data saved to: {output_path}")
+    filtered_df[cols_to_save].to_csv(output_path, index=False)
+    print(f"\n[Info] Filtered data saved to: {output_path}")
 
-    return filtered_df
-
+# 실행
 if __name__ == "__main__":
-    path = 'data/lunar_crater_database_robbins_2018.csv'
-    result = filter_craters(path, 'data/filtered_craters_local.csv')
+    filter_craters('data/lunar_crater_database_robbins_2018.csv', 'data/filtered_craters_local3.csv')
