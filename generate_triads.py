@@ -20,7 +20,7 @@ def sort_clockwise(craters):
     return [craters[i] for i in sorted_indices]
 
 def main():
-    df = pd.read_csv('data/filtered_craters_local3.csv')
+    df = pd.read_csv('data/filtered_craters_local.csv')
     
     # Set projection origin
     origin_lat = df['LAT_ELLI_IMG'].mean()

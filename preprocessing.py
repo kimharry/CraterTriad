@@ -21,6 +21,9 @@ def filter_craters(file_path, output_path):
     MAX_AXIS_KM = 50.0
 
     # quality limit
+    # ARC_IMG: 림 보존율 (0.8 이상 권장)
+    # PTS_RIM_IMG: 피팅에 사용된 점의 개수 (최소 5개 이상은 되어야 타원 피팅 가능)
+    # DIAM_ELLI_ELLIP_IMG: 타원율 (너무 찌그러진 것 제외, 1.2 이하)
     MIN_ARC = 0.8
     MIN_PTS = 5
     MAX_ELLIP = 1.2
@@ -63,4 +66,4 @@ def filter_craters(file_path, output_path):
 
 # 실행
 if __name__ == "__main__":
-    filter_craters('data/lunar_crater_database_robbins_2018.csv', 'data/filtered_craters_local3.csv')
+    filter_craters('data/lunar_crater_database_robbins_2018.csv', 'data/filtered_craters_local2.csv')
