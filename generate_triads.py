@@ -5,6 +5,8 @@ from tqdm import tqdm
 import pickle
 
 R_MOON = 1737.4
+# SWATH = 1.88 # Altitude: 3.5km
+SWATH = 8.04 # Altitude: 15km
 
 def latlon_to_xy(lat, lon, origin_lat, origin_lon):
     """Equirectangular Projection"""
@@ -50,11 +52,16 @@ def main():
     for comb in tqdm(combinations(craters, 3), desc="Triad generation"):
         c1, c2, c3 = comb
         
-        # Overlap check
         d12 = np.hypot(c1['x']-c2['x'], c1['y']-c2['y'])
         d23 = np.hypot(c2['x']-c3['x'], c2['y']-c3['y'])
         d31 = np.hypot(c3['x']-c1['x'], c3['y']-c1['y'])
+
+        # Swath check
+        max_d = SWATH * np.sqrt(2)
+        if (d12 > max_d) or (d23 > max_d) or (d31 > max_d):
+            continue
         
+        # Overlap check
         if (d12 < c1['a'] + c2['a']) or \
            (d23 < c2['a'] + c3['a']) or \
            (d31 < c3['a'] + c1['a']):
@@ -71,9 +78,9 @@ def main():
 
     print(f"Valid Triads: {len(triads)}")
     
-    with open('data/triads_data.pkl', 'wb') as f:
+    with open('data/triads_data3.pkl', 'wb') as f:
         pickle.dump(triads, f)
-    print("Saved intermediate data: triads_data.pkl")
+    print("Saved intermediate data: triads_data2.pkl")
 
 if __name__ == "__main__":
     main()

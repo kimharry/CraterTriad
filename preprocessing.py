@@ -1,6 +1,7 @@
 # 01_filter_data.py
 import pandas as pd
-import numpy as np
+import matplotlib.pyplot as plt
+
 
 def filter_craters(file_path, output_path):
 
@@ -12,10 +13,10 @@ def filter_craters(file_path, output_path):
         return
     
     # 100km x 100km
-    MIN_LAT = 40.0
-    MAX_LAT = 43.3
-    MIN_LON = 196.7
-    MAX_LON = 200.0
+    MIN_LAT = 43.4
+    MAX_LAT = 46.7
+    MIN_LON = 191.4
+    MAX_LON = 196.2
 
     # size limit (semi-major axis)
     MAX_AXIS_KM = 50.0
@@ -26,7 +27,6 @@ def filter_craters(file_path, output_path):
     # DIAM_ELLI_ELLIP_IMG: 타원율
     MIN_ARC = 0.8
     MIN_PTS = 5
-    MAX_ELLIP = 2
 
     df = df.dropna(subset=['LAT_ELLI_IMG', 'LON_ELLI_IMG', 'DIAM_ELLI_MAJOR_IMG', 'DIAM_ELLI_ANGLE_IMG'])
 
@@ -40,8 +40,7 @@ def filter_craters(file_path, output_path):
         
         # quality filter
         (df['ARC_IMG'] >= MIN_ARC) & 
-        (df['PTS_RIM_IMG'] >= MIN_PTS) &
-        (df['DIAM_ELLI_ELLIP_IMG'] <= MAX_ELLIP)
+        (df['PTS_RIM_IMG'] >= MIN_PTS)
     ].copy()
 
 
@@ -52,6 +51,13 @@ def filter_craters(file_path, output_path):
     print(f" - Extracted Craters: {len(filtered_df):,}개")
     
     filtered_df.reset_index(drop=True, inplace=True)
+
+    # histogram
+    # filtered_df['DIAM_ELLI_MAJOR_IMG'].hist(bins=50)
+    # plt.title("Diameter Histogram")
+    # plt.xlabel("Diameter (km)")
+    # plt.ylabel("Frequency")
+    # plt.show()
     
     cols_to_save = [
         'CRATER_ID', 

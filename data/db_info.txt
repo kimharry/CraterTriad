@@ -1,0 +1,16 @@
+Lat: 43.4~46.7
+Lon: 191.4~196.2
+
+No.1
+Swath ignored
+DB size: 3,799,873
+
+No.2
+Altitude: 3.5km
+Swath: 1.88km
+DB size: 4
+
+No.3
+Altitude: 15km
+Swath: 8.04km
+DB size: 3,548
