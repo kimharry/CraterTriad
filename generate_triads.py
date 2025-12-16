@@ -8,14 +8,18 @@ R_MOON = 1737.4
 # SWATH = 1.88 # Altitude: 3.5km
 SWATH = 8.04 # Altitude: 15km
 
-def latlon_to_xy(lat, lon, origin_lat, origin_lon):
-    """Equirectangular Projection"""
-    x = (lon - origin_lon) * (np.pi / 180) * R_MOON * np.cos(np.radians(origin_lat))
-    y = (lat - origin_lat) * (np.pi / 180) * R_MOON
-    return x, y
+def lla_to_cartesian(lat, lon):
+    lat_rad = np.radians(lat)
+    lon_rad = np.radians(lon)
+    
+    x = R_MOON * np.cos(lat_rad) * np.cos(lon_rad)
+    y = R_MOON * np.cos(lat_rad) * np.sin(lon_rad)
+    z = R_MOON * np.sin(lat_rad)
+    
+    return np.array([x, y, z])
 
 def sort_clockwise(craters):
-    coords = np.array([[c['x'], c['y']] for c in craters])
+    coords = np.array([[c['pos'][0], c['pos'][1]] for c in craters])
     centroid = np.mean(coords, axis=0)
     angles = np.arctan2(coords[:, 1] - centroid[1], coords[:, 0] - centroid[0])
     sorted_indices = np.argsort(angles)
@@ -24,13 +28,9 @@ def sort_clockwise(craters):
 def main():
     df = pd.read_csv('data/filtered_craters_local.csv')
     
-    # Set projection origin
-    origin_lat = df['LAT_ELLI_IMG'].mean()
-    origin_lon = df['LON_ELLI_IMG'].mean()
-    
     craters = []
     for idx, row in df.iterrows():
-        x, y = latlon_to_xy(row['LAT_ELLI_IMG'], row['LON_ELLI_IMG'], origin_lat, origin_lon)
+        pos = lla_to_cartesian(row['LAT_ELLI_IMG'], row['LON_ELLI_IMG'])
         
         a = row['DIAM_ELLI_MAJOR_IMG'] / 2
         b = row['DIAM_ELLI_MINOR_IMG'] / 2
@@ -38,8 +38,9 @@ def main():
         
         craters.append({
             'id': row['CRATER_ID'],
-            'x': x,
-            'y': y,
+            'lat': row['LAT_ELLI_IMG'],
+            'lon': row['LON_ELLI_IMG'],
+            'pos': pos,
             'a': a,
             'b': b,
             'theta': theta
@@ -52,9 +53,9 @@ def main():
     for comb in tqdm(combinations(craters, 3), desc="Triad generation"):
         c1, c2, c3 = comb
         
-        d12 = np.hypot(c1['x']-c2['x'], c1['y']-c2['y'])
-        d23 = np.hypot(c2['x']-c3['x'], c2['y']-c3['y'])
-        d31 = np.hypot(c3['x']-c1['x'], c3['y']-c1['y'])
+        d12 = np.linalg.norm(c1['pos'] - c2['pos'])
+        d23 = np.linalg.norm(c2['pos'] - c3['pos'])
+        d31 = np.linalg.norm(c3['pos'] - c1['pos'])
 
         # Swath check
         max_d = SWATH * np.sqrt(2)
@@ -78,9 +79,9 @@ def main():
 
     print(f"Valid Triads: {len(triads)}")
     
-    with open('data/triads_data3.pkl', 'wb') as f:
+    with open('data/triads_data5.pkl', 'wb') as f:
         pickle.dump(triads, f)
-    print("Saved intermediate data: triads_data2.pkl")
+    print("Saved intermediate data: triads_data5.pkl")
 
 if __name__ == "__main__":
     main()
