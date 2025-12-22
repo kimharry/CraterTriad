@@ -2,39 +2,16 @@ import numpy as np
 import pdb
 
 R_MOON = 1737.4
+LAT_AVG = 45.05
+LON_AVG = 193.8 
 
-def get_enu_vecs(center_vec):
+def lonlat_to_local_2d(lon, lat):
     """
-    Get e, n, u vectors from center vector of triad
+    Project lonlat to local 2D plane
     """
-    u = center_vec / np.linalg.norm(center_vec)
     
-    k = np.array([0, 0, 1])
-    
-    # pdb.set_trace()
-    
-    e = np.cross(k, u)
-    e = e / np.linalg.norm(e)
-        
-    n = np.cross(u, e)
-    n = n / np.linalg.norm(n)
-    
-    return e, n, u
-
-def project_crater_to_plane(crater):
-    """
-    Project 3D crater to 2D plane
-    """
-    lat = np.radians(crater['lat'])
-    lon = np.radians(crater['lon'])
-    center_vec = R_MOON * np.array([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
-    
-    E, N, U = get_enu_vecs(center_vec)
-    
-    rel_pos = crater['pos'] - center_vec
-    
-    x_local = np.dot(rel_pos, E) # East 성분
-    y_local = np.dot(rel_pos, N) # North 성분
+    x_local = (lon - LON_AVG) * np.cos(lat)
+    y_local = lat - LAT_AVG
     
     return x_local, y_local
 
@@ -42,7 +19,7 @@ def get_conic_matrix(crater):
     """
     Convert crater parameters to 3x3 Conic Matrix A.
     """
-    x, y = project_crater_to_plane(crater)
+    x_c, y_c = lonlat_to_local_2d(crater['lon'], crater['lat'])
 
     theta = np.radians(crater['theta'])
     sin_t = np.sin(theta)
@@ -54,9 +31,9 @@ def get_conic_matrix(crater):
     A = a2 * sin_t**2 + b2 * cos_t**2
     B = 2 * (b2 - a2) * cos_t * sin_t
     C = a2 * cos_t**2 + b2 * sin_t**2
-    D = -2 * A * x - B * y
-    F = -B * x - 2 * C * y
-    G = A * x**2 + B * x * y + C * y**2 - a2 * b2
+    D = -2 * A * x_c - B * y_c
+    F = -B * x_c - 2 * C * y_c
+    G = A * x_c**2 + B * x_c * y_c + C * y_c**2 - a2 * b2
     
     M = np.array([
         [A,   B/2, D/2],

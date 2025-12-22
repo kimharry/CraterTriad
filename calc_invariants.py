@@ -5,7 +5,7 @@ from utils import get_conic_matrix, calculate_invariants
 
 
 def main():
-    with open('data/triads_data5.pkl', 'rb') as f:
+    with open('data/triads_data6.pkl', 'rb') as f:
         triads = pickle.load(f)
     
     descriptors = []
@@ -32,8 +32,8 @@ def main():
     df_ids = pd.DataFrame(ids, columns=['id1', 'id2', 'id3'])
     
     final_df = pd.concat([df_ids, df_desc], axis=1)
-    final_df.to_csv('data/crater_index_db5.csv', index=False)
-    print(f"Index DB saved: crater_index_db5.csv ({len(final_df)} entries)")
+    final_df.to_csv('data/crater_index_db6.csv', index=False)
+    print(f"Index DB saved: crater_index_db6.csv ({len(final_df)} entries)")
 
 if __name__ == "__main__":
     main()

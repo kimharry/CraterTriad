@@ -15,10 +15,10 @@ def get_center_vector(crater):
     return R_MOON * np.array([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
 
 def main():
-    with open('data/triads_data5.pkl', 'rb') as f:
+    with open('data/triads_data6.pkl', 'rb') as f:
         triads = pickle.load(f)
 
-    index_map = pd.read_csv('data/crater_index_db5.csv')
+    index_map = pd.read_csv('data/crater_index_db6.csv')
     
     centroids = []
     invs = []
@@ -41,14 +41,14 @@ def main():
     
     fig = plt.figure(figsize=(10, 6))
     ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(invs_tsne[:, 0], invs_tsne[:, 1], invs_tsne[:, 2], c=centroids[:, 0], cmap='viridis')
+    ax.scatter(invs_tsne[:, 0], invs_tsne[:, 1], invs_tsne[:, 2], c=centroids[:, 0], cmap='viridis', s=1)
     plt.show()
     # plt.scatter(centroids[:][0], centroids[:][1], color='r')
     # plt.subplot()
 
     fig = plt.figure(figsize=(10, 6))
     ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(invs_tsne[:, 0], invs_tsne[:, 1], invs_tsne[:, 2], c=centroids[:, 1], cmap='viridis')
+    ax.scatter(invs_tsne[:, 0], invs_tsne[:, 1], invs_tsne[:, 2], c=centroids[:, 1], cmap='viridis', s=1)
     plt.show()
 
 

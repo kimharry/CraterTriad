@@ -3,20 +3,12 @@ import numpy as np
 from itertools import combinations
 from tqdm import tqdm
 import pickle
+from utils import lonlat_to_local_2d
 
 R_MOON = 1737.4
 # SWATH = 1.88 # Altitude: 3.5km
-SWATH = 8.04 # Altitude: 15km
-
-def lla_to_cartesian(lat, lon):
-    lat_rad = np.radians(lat)
-    lon_rad = np.radians(lon)
-    
-    x = R_MOON * np.cos(lat_rad) * np.cos(lon_rad)
-    y = R_MOON * np.cos(lat_rad) * np.sin(lon_rad)
-    z = R_MOON * np.sin(lat_rad)
-    
-    return np.array([x, y, z])
+# SWATH = 8.04 # Altitude: 15km
+SWATH = 16.08 # Altitude: 30km
 
 def sort_clockwise(craters):
     coords = np.array([[c['pos'][0], c['pos'][1]] for c in craters])
@@ -30,7 +22,7 @@ def main():
     
     craters = []
     for idx, row in df.iterrows():
-        pos = lla_to_cartesian(row['LAT_ELLI_IMG'], row['LON_ELLI_IMG'])
+        x, y = lonlat_to_local_2d(row['LAT_ELLI_IMG'], row['LON_ELLI_IMG'])
         
         a = row['DIAM_ELLI_MAJOR_IMG'] / 2
         b = row['DIAM_ELLI_MINOR_IMG'] / 2
@@ -40,7 +32,7 @@ def main():
             'id': row['CRATER_ID'],
             'lat': row['LAT_ELLI_IMG'],
             'lon': row['LON_ELLI_IMG'],
-            'pos': pos,
+            'pos': np.array([x, y]),
             'a': a,
             'b': b,
             'theta': theta
@@ -79,9 +71,9 @@ def main():
 
     print(f"Valid Triads: {len(triads)}")
     
-    with open('data/triads_data5.pkl', 'wb') as f:
+    with open('data/triads_data6.pkl', 'wb') as f:
         pickle.dump(triads, f)
-    print("Saved intermediate data: triads_data5.pkl")
+    print("Saved intermediate data: triads_data6.pkl")
 
 if __name__ == "__main__":
     main()
