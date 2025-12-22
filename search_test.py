@@ -3,21 +3,22 @@ import numpy as np
 import pandas as pd
 import tqdm
 
-index_map = pd.read_csv('data/crater_index_db6.csv')
+index_map = pd.read_csv('data/crater_index_db.csv')
 index = index_map.values
-gts = index[:1000]
+samples = index[:1000]
 random.shuffle(index)
+
+# add noise to samples
+for i in range(len(samples)):
+    samples[i][3:] += np.random.normal(0, 10, 7)
 
 corrects = 0
 wrongs = 0
-for gt in tqdm.tqdm(gts):
+for sample in tqdm.tqdm(samples):
     for triad in index:
-        # add noise to triad
-        inv = triad[3:] + np.random.normal(0, 0.1, 7)
-        
-        dist = np.linalg.norm(gt[3:] - inv)
-        if dist < 0.1:
-            if gt[0] == triad[0] and gt[1] == triad[1] and gt[2] == triad[2]:
+        dist = np.linalg.norm(triad[3:] - sample[3:])
+        if dist < 1:
+            if sample[0] == triad[0] and sample[1] == triad[1] and sample[2] == triad[2]:
                 corrects += 1
             else:
                 wrongs += 1

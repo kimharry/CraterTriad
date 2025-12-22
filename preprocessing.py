@@ -23,9 +23,8 @@ def filter_craters(file_path, output_path):
     MAX_AXIS_KM = 100.0
 
     # quality limit
-    # ARC_IMG: 림 보존율
-    # PTS_RIM_IMG: 피팅에 사용된 점의 개수 (최소 5개 이상은 되어야 타원 피팅 가능)
-    # DIAM_ELLI_ELLIP_IMG: 타원율
+    # ARC_IMG: rim arc ratio
+    # PTS_RIM_IMG: number of points used for fitting
     MIN_ARC = 0.8
     MIN_PTS = 5
 
