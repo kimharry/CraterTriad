@@ -19,8 +19,8 @@ def filter_craters(file_path, output_path):
     MIN_LON = 191.4
     MAX_LON = 196.2
 
-    # size limit (semi-major axis)
-    MAX_AXIS_KM = 50.0
+    # size limit (major diameter)
+    MAX_AXIS_KM = 100.0
 
     # quality limit
     # ARC_IMG: 림 보존율
@@ -36,7 +36,7 @@ def filter_craters(file_path, output_path):
         (df['LAT_ELLI_IMG'] >= MIN_LAT) & (df['LAT_ELLI_IMG'] <= MAX_LAT) &
         (df['LON_ELLI_IMG'] >= MIN_LON) & (df['LON_ELLI_IMG'] <= MAX_LON) &
         
-        # size filter (semi-major axis)
+        # size filter (major diameter)
         (df['DIAM_ELLI_MAJOR_IMG'] < MAX_AXIS_KM) &
         
         # quality filter
