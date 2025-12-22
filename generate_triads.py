@@ -1,11 +1,8 @@
-import pandas as pd
 import numpy as np
 from itertools import combinations
 from tqdm import tqdm
 import pickle
-from utils import lonlat_to_local_2d
 
-R_MOON = 1737.4
 # SWATH = 1.88 # Altitude: 3.5km
 # SWATH = 8.04 # Altitude: 15km
 SWATH = 16.08 # Altitude: 30km
@@ -18,25 +15,8 @@ def sort_clockwise(craters):
     return [craters[i] for i in sorted_indices]
 
 def main():
-    df = pd.read_csv('data/filtered_craters_local.csv')
-    
-    craters = []
-    for idx, row in df.iterrows():
-        x, y = lonlat_to_local_2d(row['LAT_ELLI_IMG'], row['LON_ELLI_IMG'])
-        
-        a = row['DIAM_ELLI_MAJOR_IMG'] / 2
-        b = row['DIAM_ELLI_MINOR_IMG'] / 2
-        theta = row['DIAM_ELLI_ANGLE_IMG']
-        
-        craters.append({
-            'id': row['CRATER_ID'],
-            'lat': row['LAT_ELLI_IMG'],
-            'lon': row['LON_ELLI_IMG'],
-            'pos': np.array([x, y]),
-            'a': a,
-            'b': b,
-            'theta': theta
-        })
+    with open('data/filtered_craters_local.pkl', 'rb') as f:
+        craters = pickle.load(f)
 
     print(f"Loaded Craters: {len(craters)}")
     
@@ -71,9 +51,9 @@ def main():
 
     print(f"Valid Triads: {len(triads)}")
     
-    with open('data/triads_data6.pkl', 'wb') as f:
+    with open('data/triads.pkl', 'wb') as f:
         pickle.dump(triads, f)
-    print("Saved intermediate data: triads_data6.pkl")
+    print("Saved intermediate data: triads.pkl")
 
 if __name__ == "__main__":
     main()

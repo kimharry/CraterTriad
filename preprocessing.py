@@ -1,7 +1,8 @@
-# 01_filter_data.py
 import pandas as pd
 import matplotlib.pyplot as plt
-
+from utils import lonlat_to_local_2d
+import numpy as np
+import pickle
 
 def filter_craters(file_path, output_path):
 
@@ -28,7 +29,7 @@ def filter_craters(file_path, output_path):
     MIN_ARC = 0.8
     MIN_PTS = 5
 
-    df = df.dropna(subset=['LAT_ELLI_IMG', 'LON_ELLI_IMG', 'DIAM_ELLI_MAJOR_IMG', 'DIAM_ELLI_ANGLE_IMG'])
+    df = df.dropna(subset=['LAT_ELLI_IMG', 'LON_ELLI_IMG', 'DIAM_ELLI_MAJOR_IMG', 'DIAM_ELLI_MINOR_IMG', 'DIAM_ELLI_ANGLE_IMG'])
 
     filtered_df = df[
         # location filter
@@ -43,15 +44,32 @@ def filter_craters(file_path, output_path):
         (df['PTS_RIM_IMG'] >= MIN_PTS)
     ].copy()
 
+    filtered_df.reset_index(drop=True, inplace=True)
 
-    
+    craters = []
+    for idx, row in filtered_df.iterrows():
+        x, y = lonlat_to_local_2d(row['LAT_ELLI_IMG'], row['LON_ELLI_IMG'])
+        
+        a = row['DIAM_ELLI_MAJOR_IMG'] / 2
+        b = row['DIAM_ELLI_MINOR_IMG'] / 2
+        theta = row['DIAM_ELLI_ANGLE_IMG']
+        
+        craters.append({
+            'id': row['CRATER_ID'],
+            'lat': row['LAT_ELLI_IMG'],
+            'lon': row['LON_ELLI_IMG'],
+            'pos': np.array([x, y]),
+            'a': a,
+            'b': b,
+            'theta': theta
+        })
+
+
     print("\nFiltered Data:")
     print(f" - Range: Lat {MIN_LAT}~{MAX_LAT}, Lon {MIN_LON}~{MAX_LON}")
     print(f" - Size: < {MAX_AXIS_KM} km")
     print(f" - Extracted Craters: {len(filtered_df):,}개")
     
-    filtered_df.reset_index(drop=True, inplace=True)
-
     # histogram
     # filtered_df['DIAM_ELLI_MAJOR_IMG'].hist(bins=50)
     # plt.title("Diameter Histogram")
@@ -59,16 +77,9 @@ def filter_craters(file_path, output_path):
     # plt.ylabel("Frequency")
     # plt.show()
     
-    cols_to_save = [
-        'CRATER_ID', 
-        'LAT_ELLI_IMG', 'LON_ELLI_IMG',       # 중심 좌표
-        'DIAM_ELLI_MAJOR_IMG',                # 장축 지름 (2a)
-        'DIAM_ELLI_MINOR_IMG',                # 단축 지름 (2b)
-        'DIAM_ELLI_ANGLE_IMG'                 # 회전각 (Theta)
-    ]
-    
-    filtered_df[cols_to_save].to_csv(output_path, index=False)
-    print(f"\n[Info] Filtered data saved to: {output_path}")
+    with open(output_path, 'wb') as f:
+        pickle.dump(craters, f)
+    print(f"\nFiltered data saved to: {output_path}")
 
 if __name__ == "__main__":
-    filter_craters('data/lunar_crater_database_robbins_2018.csv', 'data/filtered_craters_local.csv')
+    filter_craters('data/lunar_crater_database_robbins_2018.csv', 'data/filtered_craters_local.pkl')
