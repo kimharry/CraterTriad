@@ -8,8 +8,7 @@ def main():
     with open('data/triads.pkl', 'rb') as f:
         triads = pickle.load(f)
     
-    descriptors = []
-    ids = []
+    index = []
     
     print("Calculating invariants...")
     for t in tqdm(triads):
@@ -18,19 +17,12 @@ def main():
         A1 = get_conic_matrix(c1, for_index=True)
         A2 = get_conic_matrix(c2, for_index=True)
         A3 = get_conic_matrix(c3, for_index=True)
-        
-        # Calculate 7 invariants
-        invs = calculate_invariants(A1, A2, A3)
-        
-        descriptors.append(invs)
-        ids.append([t['id1'], t['id2'], t['id3']])
-        
-    df_desc = pd.DataFrame(descriptors, columns=[f'inv_{i}' for i in range(7)])
-    df_ids = pd.DataFrame(ids, columns=['id1', 'id2', 'id3'])
+
+        index.append([t['id1'], t['id2'], t['id3']]+calculate_invariants(A1, A2, A3))
     
-    final_df = pd.concat([df_ids, df_desc], axis=1)
-    final_df.to_csv('data/crater_index_db.csv', index=False)
-    print(f"Index DB saved: crater_index_db.csv ({len(final_df)} entries)")
+    df = pd.DataFrame(index, columns=['id1', 'id2', 'id3', 'desc_0', 'desc_1', 'desc_2', 'desc_3', 'desc_4', 'desc_5', 'desc_6'])
+    df.to_csv('data/crater_index_db.csv', index=False)
+    print(f"Index DB saved: crater_index_db.csv ({len(df)} entries)")
 
 if __name__ == "__main__":
     main()
