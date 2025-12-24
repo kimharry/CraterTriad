@@ -15,17 +15,14 @@ def main():
     for t in tqdm(triads):
         c1, c2, c3 = t['geoms']
         
-        A1 = get_conic_matrix(c1)
-        A2 = get_conic_matrix(c2)
-        A3 = get_conic_matrix(c3)
+        A1 = get_conic_matrix(c1, for_index=True)
+        A2 = get_conic_matrix(c2, for_index=True)
+        A3 = get_conic_matrix(c3, for_index=True)
         
         # Calculate 7 invariants
         invs = calculate_invariants(A1, A2, A3)
         
-        # Make sorted descriptor
-        desc = sorted(invs)
-        
-        descriptors.append(desc)
+        descriptors.append(invs)
         ids.append([t['id1'], t['id2'], t['id3']])
         
     df_desc = pd.DataFrame(descriptors, columns=[f'inv_{i}' for i in range(7)])

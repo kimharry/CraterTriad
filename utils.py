@@ -15,13 +15,17 @@ def lonlat_to_local_2d(lon, lat):
     
     return x_local, y_local
 
-def get_conic_matrix(crater):
+def get_conic_matrix(crater, for_index=False):
     """
     Convert crater parameters to 3x3 Conic Matrix A.
     """
-    x_c, y_c = lonlat_to_local_2d(crater['lon'], crater['lat'])
+    if for_index:
+        x_c, y_c = lonlat_to_local_2d(crater['lon'], crater['lat'])
+        theta = np.radians(crater['theta'])
+    else:
+        x_c, y_c = crater['x_c'], crater['y_c']
+        theta = crater['theta']
 
-    theta = np.radians(crater['theta'])
     sin_t = np.sin(theta)
     cos_t = np.cos(theta)
     
