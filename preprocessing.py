@@ -1,6 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-from utils import lonlat_to_local_2d
+from utils import lonlat_to_local_2d, get_conic_matrix, get_ENU_to_Moon_matrix
 import numpy as np
 import pickle
 
@@ -8,9 +8,9 @@ def filter_craters(file_path, output_path):
 
     try:
         df = pd.read_csv(file_path)
-        print(f"[Info] 원본 데이터 로드 완료: 총 {len(df):,}개")
+        print(f"Raw Data Loaded: {len(df):,}")
     except FileNotFoundError:
-        print("[Error] 파일을 찾을 수 없습니다.")
+        print("[Error] File Not Found")
         return
     
     # 100km x 100km
@@ -53,6 +53,8 @@ def filter_craters(file_path, output_path):
         b = row['DIAM_ELLI_MINOR_IMG'] / 2
         theta = row['DIAM_ELLI_ANGLE_IMG']
         
+        T_E_M = get_ENU_to_Moon_matrix(row['LAT_ELLI_IMG'], row['LON_ELLI_IMG'])
+        
         craters.append({
             'id': row['CRATER_ID'],
             'lat': row['LAT_ELLI_IMG'],
@@ -60,14 +62,16 @@ def filter_craters(file_path, output_path):
             'pos': np.array([x, y]),
             'a': a,
             'b': b,
-            'theta': theta
+            'theta': theta,
+            'T_E_M': T_E_M,
+            'conic_matrix': get_conic_matrix(x, y, theta, a, b)
         })
 
 
     print("\nFiltered Data:")
     print(f" - Range: Lat {MIN_LAT}~{MAX_LAT}, Lon {MIN_LON}~{MAX_LON}")
     print(f" - Size: < {MAX_AXIS_KM} km")
-    print(f" - Extracted Craters: {len(filtered_df):,}개")
+    print(f" - Extracted Craters: {len(filtered_df):,}")
     
     # histogram
     # filtered_df['DIAM_ELLI_MAJOR_IMG'].hist(bins=50)

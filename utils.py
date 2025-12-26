@@ -4,7 +4,14 @@ import pdb
 
 R_MOON = 1737.4
 LAT_AVG = 45.05
-LON_AVG = 193.8 
+LON_AVG = 193.8
+
+def sort_clockwise(craters):
+    coords = np.array([[c['pos'][0], c['pos'][1]] for c in craters])
+    centroid = np.mean(coords, axis=0)
+    angles = np.arctan2(coords[:, 1] - centroid[1], coords[:, 0] - centroid[0])
+    sorted_indices = np.argsort(angles)
+    return [craters[i] for i in sorted_indices]
 
 def lonlat_to_local_2d(lon, lat):
     """
@@ -16,22 +23,15 @@ def lonlat_to_local_2d(lon, lat):
     
     return x_local, y_local
 
-def get_conic_matrix(crater, for_index=False):
+def get_conic_matrix(x_c, y_c, theta, a, b):
     """
     Convert crater parameters to 3x3 Conic Matrix A.
     """
-    if for_index:
-        x_c, y_c = lonlat_to_local_2d(crater['lon'], crater['lat'])
-        theta = np.radians(crater['theta'])
-    else:
-        x_c, y_c = crater['x_c'], crater['y_c']
-        theta = crater['theta']
-
     sin_t = np.sin(theta)
     cos_t = np.cos(theta)
     
-    a2 = crater['a']**2
-    b2 = crater['b']**2
+    a2 = a**2
+    b2 = b**2
     
     A = a2 * sin_t**2 + b2 * cos_t**2
     B = 2 * (b2 - a2) * cos_t * sin_t
@@ -75,15 +75,21 @@ def calculate_invariants(A1, A2, A3):
     I13 = np.trace(A1_inv @ A3)
     
     I123 = np.trace((get_adjugate(A2 + A3) - get_adjugate(A2 - A3)) @ A1)
-
-    term1 = I12 + I23 + I31
-    term2 = (2 * (I12**3 + I23**3 + I31**3) + 12*I12*I23*I31 - 3*(I12**2 * (I23 + I31) + I23**2 * (I31 + I12) + I31**2 * (I12 + I23))) \
-            / (I12**2 + I23**2 + I31**2 - (I12*I23 + I23*I31 + I31*I12))
-    term3 = -3 * sqrt(3) * (I12 - I23)*(I23 - I31)*(I31 - I12) \
-            / (I12**2 + I23**2 + I31**2 - (I12*I23 + I23*I31 + I31*I12))
-    term4 = I21 + I32 + I13
-    term5 = 1.5 * (I12*I21 + I23*I32 + I31*I13) - 0.5 * (I12 + I23 + I31) * (I21 + I32 + I13)
-    term6 = sqrt(3) / 2 * ((I12*I13 + I23*I21 + I31*I32) - (I12*I32 + I23*I13 + I31*I21))
-    term7 = I123
     
-    return [term1, term2, term3, term4, term5, term6, term7]
+    return [I12, I21, I23, I32, I31, I13, I123]
+
+def get_center_vector(lat, lon):
+    return R_MOON * np.array([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
+
+def get_ENU_to_Moon_matrix(lat, lon):
+    """
+        Returns the transformation matrix from local ENU coordinate to Moon-centered coordinate
+    """
+    k = np.array([0, 0, 1])
+    p = get_center_vector(lat, lon)
+
+    u = p / np.linalg.norm(p)
+    e = np.cross(k, u) / np.linalg.norm(np.cross(k, u))
+    n = np.cross(u, e) / np.linalg.norm(np.cross(u, e))
+
+    return np.array([e, n, u])
