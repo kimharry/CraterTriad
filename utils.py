@@ -93,3 +93,15 @@ def get_ENU_to_Moon_matrix(lat, lon):
     n = np.cross(u, e) / np.linalg.norm(np.cross(u, e))
 
     return np.array([e, n, u])
+
+def EPS(craters, r):
+    combs = []
+    n = len(craters)
+    for dj in range(1, n-1):
+        for dk in range(1, n-dj):
+            for ii in range(r):
+                for i in range(ii, n-dj-dk, r):
+                    j = i + dj
+                    k = j + dk
+                    combs.append([craters[i], craters[j], craters[k]])
+    return combs
