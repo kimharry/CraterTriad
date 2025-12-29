@@ -170,9 +170,9 @@ def main(detections, T_M_C):
            np.linalg.norm(comb[2]['pos'] - comb[0]['pos']) < comb[2]['a'] + comb[0]['a']:
             continue
 
-        A1 = get_conic_matrix(comb[0]['pos'][0], comb[0]['pos'][1], comb[0]['theta'], comb[0]['a'], comb[0]['b'])
-        A2 = get_conic_matrix(comb[1]['pos'][0], comb[1]['pos'][1], comb[1]['theta'], comb[1]['a'], comb[1]['b'])
-        A3 = get_conic_matrix(comb[2]['pos'][0], comb[2]['pos'][1], comb[2]['theta'], comb[2]['a'], comb[2]['b'])
+        A1 = get_conic_matrix(comb[0]['theta'], comb[0]['a'], comb[0]['b'])
+        A2 = get_conic_matrix(comb[1]['theta'], comb[1]['a'], comb[1]['b'])
+        A3 = get_conic_matrix(comb[2]['theta'], comb[2]['a'], comb[2]['b'])
         
         for _ in range(3):
             descriptors = calculate_invariants(A1, A2, A3)

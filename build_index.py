@@ -2,8 +2,7 @@ import numpy as np
 from itertools import combinations
 from tqdm import tqdm
 import pickle
-from utils import sort_clockwise
-from calc_invariants import calculate_invariants
+from utils import sort_clockwise, calculate_invariants
 
 # SWATH = 1.88 # Altitude: 3.5km
 # SWATH = 8.04 # Altitude: 15km

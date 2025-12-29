@@ -1,6 +1,4 @@
-from math import sqrt
 import numpy as np
-import pdb
 
 R_MOON = 1737.4
 LAT_AVG = 45.05
@@ -23,15 +21,15 @@ def lonlat_to_local_2d(lon, lat):
     
     return x_local, y_local
 
-def get_conic_matrix(x_c, y_c, theta, a, b):
+def get_conic_matrix(theta, a, b, x_c=0, y_c=0):
     """
     Convert crater parameters to 3x3 Conic Matrix A.
     """
     sin_t = np.sin(theta)
     cos_t = np.cos(theta)
     
-    a2 = a**2
-    b2 = b**2
+    a2 = a * a
+    b2 = b * b
     
     A = a2 * sin_t**2 + b2 * cos_t**2
     B = 2 * (b2 - a2) * cos_t * sin_t

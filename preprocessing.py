@@ -5,7 +5,6 @@ import numpy as np
 import pickle
 
 def filter_craters(file_path, output_path):
-
     try:
         df = pd.read_csv(file_path)
         print(f"Raw Data Loaded: {len(df):,}")
@@ -64,7 +63,7 @@ def filter_craters(file_path, output_path):
             'b': b,
             'theta': theta,
             'T_E_M': T_E_M,
-            'conic_matrix': get_conic_matrix(x, y, theta, a, b)
+            'conic_matrix': get_conic_matrix(theta, a, b)
         })
 
 
