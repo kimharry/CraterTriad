@@ -2,7 +2,6 @@ import pickle
 import numpy as np
 from utils import sort_clockwise, get_conic_matrix, EPS, calculate_invariants
 
-R_MOON = 1737.4
 K = np.array([
     [0.0, 0.0, 0.0],
     [0.0, 0.0, 0.0],
@@ -12,6 +11,9 @@ K = np.array([
 def identify_craters(descriptors):
     with open('data/index.pkl', 'rb') as f:
         index = pickle.load(f)
+    
+    with open('data/filtered_craters_local.pkl', 'rb') as f:
+        craters = pickle.load(f)
 
     matches = []
     k = 3
@@ -20,12 +22,14 @@ def identify_craters(descriptors):
         distance = np.linalg.norm(np.array(index_key) - np.array(descriptors))
         if distance < min_dist:
             min_dist = distance
-            matches.append(index[index_key])
+            ids = index[index_key]
+            matches.append([craters[id] for id in ids])
             if len(matches) > k:
                 matches.pop(0)
     return matches
 
-def estimate_pose(match, T_M_C):
+def estimate_pose(detect, match, T_M_C):
+    A1, A2, A3 = detect
     C1 = match[0]['conic_matrix']
     C2 = match[1]['conic_matrix']
     C3 = match[2]['conic_matrix']
@@ -36,9 +40,9 @@ def estimate_pose(match, T_M_C):
 
     k = np.array([0, 0, 1]).T
     
-    B1 = T_M_C.T @ K.T @ C1 @ K @ T_M_C
-    B2 = T_M_C.T @ K.T @ C2 @ K @ T_M_C
-    B3 = T_M_C.T @ K.T @ C3 @ K @ T_M_C
+    B1 = T_M_C.T @ K.T @ A1 @ K @ T_M_C
+    B2 = T_M_C.T @ K.T @ A2 @ K @ T_M_C
+    B3 = T_M_C.T @ K.T @ A3 @ K @ T_M_C
     
     # 3 x 2 selective matrix
     # [I_2x2 
@@ -57,9 +61,9 @@ def estimate_pose(match, T_M_C):
     T_E2_M = match[1]['T_E_M']
     T_E3_M = match[2]['T_E_M']
 
-    s_hat_1 = np.dot(temp1, (S.T @ T_E1_M.T @ B1 @ T_E1_M @ S).flatten()) / np.dot(temp1.T, temp1)
-    s_hat_2 = np.dot(temp2, (S.T @ T_E2_M.T @ B2 @ T_E2_M @ S).flatten()) / np.dot(temp2.T, temp2)
-    s_hat_3 = np.dot(temp3, (S.T @ T_E3_M.T @ B3 @ T_E3_M @ S).flatten()) / np.dot(temp3.T, temp3)
+    s_hat_1 = (temp1 @ (S.T @ T_E1_M.T @ B1 @ T_E1_M @ S).flatten()) / (temp1.T @ temp1)
+    s_hat_2 = (temp2 @ (S.T @ T_E2_M.T @ B2 @ T_E2_M @ S).flatten()) / (temp2.T @ temp2)
+    s_hat_3 = (temp3 @ (S.T @ T_E3_M.T @ B3 @ T_E3_M @ S).flatten()) / (temp3.T @ temp3)
 
     H = np.array([
         [S.T @ T_E1_M.T @ B1],
@@ -181,7 +185,7 @@ def main(detections, T_M_C):
                 break
 
             for match in matches:
-                r_M = estimate_pose(match, T_M_C)
+                r_M = estimate_pose([A1, A2, A3], match, T_M_C)
                 if validate_pose(match, comb, r_M, T_M_C):
                     return r_M
 

@@ -3,10 +3,7 @@ from itertools import combinations
 from tqdm import tqdm
 import pickle
 from utils import sort_clockwise, calculate_invariants
-
-# SWATH = 1.88 # Altitude: 3.5km
-# SWATH = 8.04 # Altitude: 15km
-SWATH = 16.08 # Altitude: 30km
+from config import SWATH
 
 def build_index():
     with open('data/filtered_craters_local.pkl', 'rb') as f:
@@ -17,7 +14,9 @@ def build_index():
     index = {}
     
     for comb in tqdm(combinations(craters, 3), desc="Index generation", total=len(list(combinations(craters, 3)))):
-        c1, c2, c3 = comb
+        c1 = craters[comb[0]]
+        c2 = craters[comb[1]]
+        c3 = craters[comb[2]]
         
         d12 = np.linalg.norm(c1['pos'] - c2['pos'])
         d23 = np.linalg.norm(c2['pos'] - c3['pos'])
@@ -29,15 +28,15 @@ def build_index():
             continue
         
         # Overlap check
-        if (d12 < c1['a'] + c2['a']) or \
-           (d23 < c2['a'] + c3['a']) or \
-           (d31 < c3['a'] + c1['a']):
+        if (d12 < c1['b'] + c2['b']) or \
+           (d23 < c2['b'] + c3['b']) or \
+           (d31 < c3['b'] + c1['b']):
             continue
             
         c1, c2, c3 = sort_clockwise([c1, c2, c3])
         
         descriptor = calculate_invariants(c1['conic_matrix'], c2['conic_matrix'], c3['conic_matrix'])
-        index[tuple(descriptor)] = [c1, c2, c3]
+        index[tuple(descriptor)] = [c1['id'], c2['id'], c3['id']]
 
     print(f"Valid Triads: {len(index)}")
     

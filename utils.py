@@ -1,8 +1,5 @@
 import numpy as np
-
-R_MOON = 1737.4
-LAT_AVG = 45.05
-LON_AVG = 193.8
+from config import R_MOON, LAT_AVG, LON_AVG
 
 def sort_clockwise(craters):
     coords = np.array([[c['pos'][0], c['pos'][1]] for c in craters])
