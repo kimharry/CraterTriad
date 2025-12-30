@@ -22,6 +22,6 @@ LON_AVG = 193.8
 
 # SWATH = 1.88 # Altitude: 3.5km
 # SWATH = 8.04 # Altitude: 15km
-ALTITUDE = 30 # km
+ALTITUDE = 50 # km
 FOV = 30 # degrees
 SWATH = ALTITUDE * np.tan(np.radians(FOV/2)) * 2
