@@ -12,9 +12,11 @@ def lonlat_to_local_2d(lon, lat):
     """
     Project lonlat to local 2D plane
     """
-    
-    x_local = (lon - LON_AVG) * np.cos(lat)
-    y_local = lat - LAT_AVG
+    lon_rad = np.radians(lon)
+    lat_rad = np.radians(lat)
+
+    x_local = R_MOON * (lon_rad - np.radians(LON_AVG)) * np.cos(lat_rad)
+    y_local = R_MOON * (lat_rad - np.radians(LAT_AVG))
     
     return x_local, y_local
 

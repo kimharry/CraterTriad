@@ -17,8 +17,8 @@ MAX_AXIS_KM = 100.0
 MIN_ARC = 0.8
 MIN_PTS = 5
 
-LAT_AVG = 45.05
-LON_AVG = 193.8
+LAT_AVG = (MIN_LAT + MAX_LAT) / 2
+LON_AVG = (MIN_LON + MAX_LON) / 2
 
 # SWATH = 1.88 # Altitude: 3.5km
 # SWATH = 8.04 # Altitude: 15km
