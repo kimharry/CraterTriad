@@ -1,6 +1,6 @@
 import pickle
 import numpy as np
-from utils import sort_clockwise, get_conic_matrix, EPS, calculate_invariants, get_center_vector
+from utils import get_adjugate, sort_clockwise, get_2d_conic_matrix, EPS, calculate_invariants, get_center_vector
 import pdb
 
 K = np.array([
@@ -82,32 +82,17 @@ def estimate_pose(detect, match, T_M_C):
     r_M = np.linalg.pinv(H.T @ H) @ H.T @ y
     return r_M
 
-def proj_db2img(T_M_C, r_M, p_M, a, b, theta, T_E_M):
+def proj_db2img(T_M_C, r_M, Q_star):
     """
         T_M_C: Moon to Camera transformation matrix
         r_M: 3D position vector of camera in Moon frame
-        p_M: Crater center in Moon frame
-        a, b: Semi-major and semi-minor axes (km)
-        theta: Rotation angle of crater (radians)
-        T_E_M: Crater's local ENU frame transformation matrix
+        Q_star: 3D conic matrix from database
 
         Return: y, Y parameters for the projected crater
     """
+    P_M_C = K @ T_M_C @ (np.eye(3) - r_M)
 
-    t_C = T_M_C @ (p_M.reshape(-1, 1) - r_M) # camera to crater vector
-    R_E_C = T_M_C @ T_E_M # rotation of crater local frame to camera frame
-
-    H = K @ np.column_stack([R_E_C[:, 0], R_E_C[:, 1], t_C])
-    H_inv = np.linalg.pinv(H)
-    R_2D = np.array([[np.cos(theta), -np.sin(theta), 0],
-                     [np.sin(theta),  np.cos(theta), 0],
-                     [0, 0, 1]])
-
-    C_local = R_2D @ np.diag([1/a**2, 1/b**2, -1]) @ R_2D.T
-
-    # pdb.set_trace()
-    A_proj = H_inv.T @ C_local @ H_inv
-    A_proj /= np.linalg.norm(A_proj)
+    A_proj = P_M_C @ get_adjugate(Q_star) @ P_M_C.T
 
     A_uu = A_proj[:2, :2]
     A_u1 = A_proj[:2, 2]
@@ -144,8 +129,7 @@ def validate_pose(match, detect_triad, r_M, T_M_C, sigma_img=1.0):
         return False
 
     for i in range(len(match)):
-        y_i, Y_i = proj_db2img(T_M_C, r_M, get_center_vector(match[i]['lat'], match[i]['lon']), \
-            match[i]['a'], match[i]['b'], match[i]['theta'], match[i]['T_E_M'])
+        y_i, Y_i = proj_db2img(T_M_C, r_M, match[i]['Q_star'])
         
         y_j = np.array(detect_triad[i]['pos']).T
         R = np.array([[np.cos(detect_triad[i]['theta']), -np.sin(detect_triad[i]['theta'])],
@@ -184,9 +168,9 @@ def main(detections, T_M_C):
            np.linalg.norm(detect_triad[2]['pos'] - detect_triad[0]['pos']) < detect_triad[2]['a'] + detect_triad[0]['a']:
             continue
 
-        A1 = get_conic_matrix(detect_triad[0]['theta'], detect_triad[0]['a'], detect_triad[0]['b'])
-        A2 = get_conic_matrix(detect_triad[1]['theta'], detect_triad[1]['a'], detect_triad[1]['b'])
-        A3 = get_conic_matrix(detect_triad[2]['theta'], detect_triad[2]['a'], detect_triad[2]['b'])
+        A1 = get_2d_conic_matrix(detect_triad[0]['theta'], detect_triad[0]['a'], detect_triad[0]['b'])
+        A2 = get_2d_conic_matrix(detect_triad[1]['theta'], detect_triad[1]['a'], detect_triad[1]['b'])
+        A3 = get_2d_conic_matrix(detect_triad[2]['theta'], detect_triad[2]['a'], detect_triad[2]['b'])
         
         for _ in range(3):
             descriptors = calculate_invariants(A1, A2, A3)

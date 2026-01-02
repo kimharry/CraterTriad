@@ -1,28 +1,42 @@
 import numpy as np
-from config import R_MOON, LAT_AVG, LON_AVG
+import pdb
+from config import R_MOON
 
 def sort_clockwise(craters):
-    coords = np.array([[c['pos'][0], c['pos'][1]] for c in craters])
-    centroid = np.mean(coords, axis=0)
-    angles = np.arctan2(coords[:, 1] - centroid[1], coords[:, 0] - centroid[0])
-    sorted_indices = np.argsort(angles)
-    return [craters[i] for i in sorted_indices]
-
-def lonlat_to_local_2d(lon, lat):
-    """
-    Project lonlat to local 2D plane
-    """
-    lon_rad = np.radians(lon)
-    lat_rad = np.radians(lat)
-
-    x_local = R_MOON * (lon_rad - np.radians(LON_AVG)) * np.cos(lat_rad)
-    y_local = R_MOON * (lat_rad - np.radians(LAT_AVG))
+    p1, p2, p3 = craters[0]['pos'], craters[1]['pos'], craters[2]['pos']
     
-    return x_local, y_local
+    if len(p1) == 2:
+        # 2D case
+        p1 = np.append(p1, 0)
+        p2 = np.append(p2, 0)
+        p3 = np.append(p3, 0)
 
-def get_conic_matrix(theta, a, b, x_c=0, y_c=0):
+    centroid = (p1 + p2 + p3) / 3
+    normal = np.cross(p2 - p1, p3 - p1)
+
+    if np.dot(normal, centroid) > 0:
+        return [craters[2], craters[1], craters[0]]
+
+    return craters
+
+def get_center_vector(lat, lon):
+    return R_MOON * np.array([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
+
+def get_ENU_to_Moon_matrix(p_M):
     """
-    Convert crater parameters to 3x3 Conic Matrix A.
+        Returns the transformation matrix from local ENU coordinate to Moon-centered coordinate (T^E_M)
+    """
+    k = np.array([0, 0, 1])
+
+    u = p_M / np.linalg.norm(p_M)
+    e = np.cross(k, u) / np.linalg.norm(np.cross(k, u))
+    n = np.cross(u, e) / np.linalg.norm(np.cross(u, e))
+
+    return np.column_stack([e, n, u])
+
+def get_2d_conic_matrix(theta, a, b, x_c=0, y_c=0):
+    """
+    Convert crater parameters to 2D conic matrix.
     """
     sin_t = np.sin(theta)
     cos_t = np.cos(theta)
@@ -53,43 +67,28 @@ def normalize_matrix(M):
 def get_adjugate(M):
     return np.linalg.inv(M) * np.linalg.det(M)
 
-def calculate_invariants(A1, A2, A3):
-    A1 = normalize_matrix(A1)
-    A2 = normalize_matrix(A2)
-    A3 = normalize_matrix(A3)
-    
-    A1_inv = np.linalg.inv(A1)
-    A2_inv = np.linalg.inv(A2)
-    A3_inv = np.linalg.inv(A3)
-    
-    I12 = np.trace(A1_inv @ A2)
-    I21 = np.trace(A2_inv @ A1)
-    
-    I23 = np.trace(A2_inv @ A3)
-    I32 = np.trace(A3_inv @ A2)
-    
-    I31 = np.trace(A3_inv @ A1)
-    I13 = np.trace(A1_inv @ A3)
-    
-    I123 = np.trace((get_adjugate(A2 + A3) - get_adjugate(A2 - A3)) @ A1)
-    
-    return [I12, I21, I23, I32, I31, I13, I123]
-
-def get_center_vector(lat, lon):
-    return R_MOON * np.array([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
-
-def get_ENU_to_Moon_matrix(lat, lon):
+def get_disk_quadric(T_E_M, p_M, conic_matrix_2d):
     """
-        Returns the transformation matrix from local ENU coordinate to Moon-centered coordinate
+        T_E_M: Transformation matrix from ENU to Moon-centered coordinates (3x3)
+        p_M: Crater center position in Moon-centered coordinates (3x1)
+        conic_matrix_2d: 2D conic matrix representing the crater shape
     """
+    C_star = get_adjugate(conic_matrix_2d)
+    S = np.array([
+        [1, 0],
+        [0, 1],
+        [0, 0]
+    ])
+    H_M = np.hstack([T_E_M @ S, p_M.reshape(3, 1)])
     k = np.array([0, 0, 1])
-    p = get_center_vector(lat, lon)
 
-    u = p / np.linalg.norm(p)
-    e = np.cross(k, u) / np.linalg.norm(np.cross(k, u))
-    n = np.cross(u, e) / np.linalg.norm(np.cross(u, e))
+    term1 = np.vstack([H_M, k])
+    Q_star = term1 @ C_star @ term1.T
 
-    return np.array([e, n, u])
+    return Q_star
+
+def calculate_invariants(A1, A2, A3):
+    pass
 
 def EPS(craters, r):
     combs = []

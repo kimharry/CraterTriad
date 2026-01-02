@@ -1,6 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-from utils import lonlat_to_local_2d, get_conic_matrix, get_ENU_to_Moon_matrix
+from utils import get_center_vector, get_2d_conic_matrix, get_ENU_to_Moon_matrix, get_disk_quadric
 import numpy as np
 import pickle
 from config import MIN_LAT, MAX_LAT, MIN_LON, MAX_LON, MAX_AXIS_KM, MIN_ARC, MIN_PTS
@@ -31,25 +31,29 @@ def filter_craters(file_path, output_path):
     filtered_df.reset_index(drop=True, inplace=True)
 
     craters = {}
-    for idx, row in filtered_df.iterrows():
-        x, y = lonlat_to_local_2d(row['LAT_ELLI_IMG'], row['LON_ELLI_IMG'])
-        
+    for _, row in filtered_df.iterrows():
+        lat = row['LAT_ELLI_IMG']
+        lon = row['LON_ELLI_IMG']
         a = row['DIAM_ELLI_MAJOR_IMG'] / 2
         b = row['DIAM_ELLI_MINOR_IMG'] / 2
         theta = np.radians(row['DIAM_ELLI_ANGLE_IMG'])
         
-        T_E_M = get_ENU_to_Moon_matrix(row['LAT_ELLI_IMG'], row['LON_ELLI_IMG'])
+        p_M = get_center_vector(lat, lon)
+        T_E_M = get_ENU_to_Moon_matrix(p_M)
+        conic_matrix_2d = get_2d_conic_matrix(theta, a, b)
+        disk_quadric = get_disk_quadric(T_E_M, p_M, conic_matrix_2d)
         
         craters[row['CRATER_ID']] = {
             'id': row['CRATER_ID'],
-            'lat': row['LAT_ELLI_IMG'],
-            'lon': row['LON_ELLI_IMG'],
-            'pos': np.array([x, y]),
+            'lat': lat,
+            'lon': lon,
+            'pos': p_M,
             'a': a,
             'b': b,
             'theta': theta,
             'T_E_M': T_E_M,
-            'conic_matrix': get_conic_matrix(theta, a, b)
+            'conic_matrix': conic_matrix_2d,
+            'Q_star': disk_quadric
         }
 
     print("\nFiltered Data:")
