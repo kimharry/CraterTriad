@@ -85,7 +85,7 @@ def get_disk_quadric(T_E_M, p_M, conic_matrix_2d):
 def normalize_vector(v):
     return v / np.linalg.norm(v)
 
-def calculate_invariants(A):
+def calculate_invariants(A, c):
     """
         A: list of 3x3 matrices representing conic sections
         c: list of crater centers
@@ -99,7 +99,7 @@ def calculate_invariants(A):
     l = []
     for i, j in [(0, 1), (0, 2), (1, 2)]:
         A_i, A_j = normalize_vector(A[i]), normalize_vector(A[j])
-        c_i, c_j = get_adjugate(A[i])[:, 2], get_adjugate(A[j])[:, 2]
+        c_i, c_j = c[i], c[j]
         
         eigs = np.linalg.eigvals(A_j @ np.linalg.pinv(-A_i))
 

@@ -135,9 +135,13 @@ def main(detections, T_M_C):
         A1 = get_2d_conic_matrix(detect_triad[0]['theta'], detect_triad[0]['a'], detect_triad[0]['b'])
         A2 = get_2d_conic_matrix(detect_triad[1]['theta'], detect_triad[1]['a'], detect_triad[1]['b'])
         A3 = get_2d_conic_matrix(detect_triad[2]['theta'], detect_triad[2]['a'], detect_triad[2]['b'])
+
+        pos1 = np.hstack([detect_triad[0]['pos'], 1])
+        pos2 = np.hstack([detect_triad[1]['pos'], 1])
+        pos3 = np.hstack([detect_triad[2]['pos'], 1])
         
         for _ in range(3):
-            descriptors = calculate_invariants([A1, A2, A3], [detect_triad[0]['pos'], detect_triad[1]['pos'], detect_triad[2]['pos']])
+            descriptors = calculate_invariants([A1, A2, A3], [pos1, pos2, pos3])
             matches = identify_craters(descriptors)
             if len(matches) == 0:
                 # print("No matches found")
@@ -152,6 +156,7 @@ def main(detections, T_M_C):
             
             # print("Not a valid pose \n")
             A1, A2, A3 = A2, A3, A1
+            pos1, pos2, pos3 = pos2, pos3, pos1
 
     print("No valid pose found")
     return None

@@ -2,7 +2,7 @@ import numpy as np
 from itertools import combinations
 from tqdm import tqdm
 import pickle
-from utils import sort_clockwise, calculate_invariants, proj_db2img
+from utils import sort_clockwise, calculate_invariants, proj_db2img, get_adjugate
 from config import SWATH, T_M_C
 
 def build_index():
@@ -40,12 +40,14 @@ def build_index():
             
         c1, c2, c3 = sort_clockwise([c1, c2, c3])
         A = [proj_db2img(T_M_C, c1['pos'], c1['Q_star']), proj_db2img(T_M_C, c2['pos'], c2['Q_star']), proj_db2img(T_M_C, c3['pos'], c3['Q_star'])]
-        descriptor = calculate_invariants(A)
+        c = [get_adjugate(Ai)[:, 2] for Ai in A]
+        descriptor = calculate_invariants(A, c)
+
         if type(descriptor) is not int:
             index[tuple(descriptor)] = [c1['id'], c2['id'], c3['id']]
-        
         else:
             err_codes.append(descriptor)
+
 
     print(f"Valid Triads: {len(index)}")
     print(f"Swath Filtered: {swath_cnt}")
