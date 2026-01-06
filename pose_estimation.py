@@ -1,13 +1,7 @@
 import pickle
 import numpy as np
-from utils import get_adjugate, sort_clockwise, get_2d_conic_matrix, EPS, calculate_invariants, get_center_vector
-import pdb
-
-K = np.array([
-    [1866.03, 0.0, 500.0],
-    [0.0, 1866.03, 500.0],
-    [0.0, 0.0, 1.0]
-])
+from utils import sort_clockwise, get_2d_conic_matrix, EPS, calculate_invariants, get_center_vector, proj_db2img, conic_to_yY, d_GA, variance
+from config import T_M_C, K
 
 def identify_craters(descriptors):
     with open('data/index.pkl', 'rb') as f:
@@ -82,37 +76,6 @@ def estimate_pose(detect, match, T_M_C):
     r_M = np.linalg.pinv(H.T @ H) @ H.T @ y
     return r_M
 
-def proj_db2img(T_M_C, r_M, Q_star):
-    """
-        T_M_C: Moon to Camera transformation matrix
-        r_M: 3D position vector of camera in Moon frame
-        Q_star: 3D conic matrix from database
-
-        Return: y, Y parameters for the projected crater
-    """
-    P_M_C = K @ T_M_C @ (np.eye(3) - r_M)
-
-    A_proj = P_M_C @ get_adjugate(Q_star) @ P_M_C.T
-
-    A_uu = A_proj[:2, :2]
-    A_u1 = A_proj[:2, 2]
-    A_11 = A_proj[2, 2]
-
-    y = -np.linalg.pinv(A_uu) @ A_u1
-    
-    mu = A_u1.T @ np.linalg.pinv(A_uu) @ A_u1 - A_11
-    Y = (1.0 / mu) * A_uu
-
-    return y, Y
-
-def d_GA(y_i, y_j, Y_i, Y_j):
-    coeff = 4 * np.sqrt(np.linalg.det(Y_i) * np.linalg.det(Y_j)) / np.linalg.det(Y_i + Y_j)
-    exp = np.exp(-0.5 * (y_i - y_j).T @ Y_i @ np.linalg.pinv(Y_i + Y_j) @ Y_j @ (y_i - y_j))
-    return np.arccos(coeff * exp)
-
-def variance(a, b, sigma_img):
-    return 0.85**2 / (a * b) * sigma_img**2
-
 def validate_pose(match, detect_triad, r_M, T_M_C, sigma_img=1.0):
     """
         match: Identified crater triad match
@@ -129,7 +92,8 @@ def validate_pose(match, detect_triad, r_M, T_M_C, sigma_img=1.0):
         return False
 
     for i in range(len(match)):
-        y_i, Y_i = proj_db2img(T_M_C, r_M, match[i]['Q_star'])
+        A_proj = proj_db2img(T_M_C, r_M, match[i]['Q_star'])
+        y_i, Y_i = conic_to_yY(A_proj)
         
         y_j = np.array(detect_triad[i]['pos']).T
         R = np.array([[np.cos(detect_triad[i]['theta']), -np.sin(detect_triad[i]['theta'])],
@@ -173,7 +137,7 @@ def main(detections, T_M_C):
         A3 = get_2d_conic_matrix(detect_triad[2]['theta'], detect_triad[2]['a'], detect_triad[2]['b'])
         
         for _ in range(3):
-            descriptors = calculate_invariants(A1, A2, A3)
+            descriptors = calculate_invariants([A1, A2, A3], [detect_triad[0]['pos'], detect_triad[1]['pos'], detect_triad[2]['pos']])
             matches = identify_craters(descriptors)
             if len(matches) == 0:
                 # print("No matches found")
@@ -207,12 +171,6 @@ if __name__ == "__main__":
         {'pos': np.array([880.84, 421.95]), 'a': 38.125, 'b': 33.485, 'theta': np.radians(5.77)}, # lat: 45.6808, lon: 194.482 -> 02-1-149305
         {'pos': np.array([342.33, 615.2]), 'a': 89.645, 'b': 79.955, 'theta': np.radians(72.89)} # lat: 45.5168, lon: 193.796 -> 02-1-144582
     ]
-
-    T_M_C = np.array([
-        [0.0, 0.0, -1.0],
-        [0.0, 1.0, 0.0],
-        [1.0, 0.0, 0.0]
-    ])
 
     r_M = main(detections, T_M_C)
     print("Estimated pose:", r_M)

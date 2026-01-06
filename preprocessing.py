@@ -32,8 +32,8 @@ def filter_craters(file_path, output_path):
 
     craters = {}
     for _, row in filtered_df.iterrows():
-        lat = row['LAT_ELLI_IMG']
-        lon = row['LON_ELLI_IMG']
+        lat = np.radians(row['LAT_ELLI_IMG'])
+        lon = np.radians(row['LON_ELLI_IMG'])
         a = row['DIAM_ELLI_MAJOR_IMG'] / 2
         b = row['DIAM_ELLI_MINOR_IMG'] / 2
         theta = np.radians(row['DIAM_ELLI_ANGLE_IMG'])
