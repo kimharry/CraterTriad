@@ -2,6 +2,7 @@ import pickle
 import numpy as np
 from utils import sort_clockwise, get_2d_conic_matrix, EPS, calculate_invariants, get_center_vector, proj_db2img, conic_to_yY, d_GA, variance
 from config import T_M_C, K
+import pdb
 
 def identify_craters(descriptors):
     with open('data/index.pkl', 'rb') as f:
@@ -136,12 +137,16 @@ def main(detections, T_M_C):
         A2 = get_2d_conic_matrix(detect_triad[1]['theta'], detect_triad[1]['a'], detect_triad[1]['b'])
         A3 = get_2d_conic_matrix(detect_triad[2]['theta'], detect_triad[2]['a'], detect_triad[2]['b'])
 
-        pos1 = np.hstack([detect_triad[0]['pos'], 1])
-        pos2 = np.hstack([detect_triad[1]['pos'], 1])
-        pos3 = np.hstack([detect_triad[2]['pos'], 1])
+        pos1 = np.linalg.inv(K) @ np.hstack([detect_triad[0]['pos'], 1])
+        pos2 = np.linalg.inv(K) @ np.hstack([detect_triad[1]['pos'], 1])
+        pos3 = np.linalg.inv(K) @ np.hstack([detect_triad[2]['pos'], 1])
         
         for _ in range(3):
+            # pdb.set_trace()
             descriptors = calculate_invariants([A1, A2, A3], [pos1, pos2, pos3])
+            if descriptors == None:
+                print("Invariants calculation failed")
+                continue
             matches = identify_craters(descriptors)
             if len(matches) == 0:
                 # print("No matches found")

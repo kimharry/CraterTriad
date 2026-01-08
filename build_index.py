@@ -2,8 +2,9 @@ import numpy as np
 from itertools import combinations
 from tqdm import tqdm
 import pickle
-from utils import sort_clockwise, calculate_invariants, proj_db2img, get_adjugate
-from config import SWATH, T_M_C
+from utils import sort_clockwise, calculate_invariants, proj_db2img, get_center_vector, get_TMC
+from config import SWATH, R_MOON, ALTITUDE
+import pdb
 
 def build_index():
     with open('data/filtered_craters_local.pkl', 'rb') as f:
@@ -15,7 +16,8 @@ def build_index():
     index = {}
     swath_cnt = 0
     overlap_cnt = 0
-    err_codes = []
+    less_than_1 = []
+    err_cnt = 0
     for comb in tqdm(combinations(craters, 3), total=len(list(combinations(craters, 3))), desc="Building index"):
         c1 = craters[comb[0]]
         c2 = craters[comb[1]]
@@ -39,23 +41,38 @@ def build_index():
             continue
             
         c1, c2, c3 = sort_clockwise([c1, c2, c3])
-        A = [proj_db2img(T_M_C, c1['pos'], c1['Q_star']), proj_db2img(T_M_C, c2['pos'], c2['Q_star']), proj_db2img(T_M_C, c3['pos'], c3['Q_star'])]
-        c = [get_adjugate(Ai)[:, 2] for Ai in A]
+        center_lat = (c1['lat'] + c2['lat'] + c3['lat']) / 3
+        center_lon = (c1['lon'] + c2['lon'] + c3['lon']) / 3
+        r_M = get_center_vector(center_lat, center_lon, r=R_MOON + ALTITUDE)
+        T_M_C = get_TMC(center_lat, center_lon)
+
+        A, c = [], []
+        for crater in [c1, c2, c3]:
+            conic, center = proj_db2img(T_M_C, r_M, crater['Q_star'], np.eye(3))
+            A.append(conic)
+            c.append(center)
+
+        # pdb.set_trace()
         descriptor = calculate_invariants(A, c)
 
-        if type(descriptor) is not int:
-            index[tuple(descriptor)] = [c1['id'], c2['id'], c3['id']]
+        if descriptor is None:
+            err_cnt += 1
+        elif descriptor[-1] == False:
+            if descriptor[0] < 1:
+                less_than_1.append(descriptor[0])
+            if descriptor[1] < 1:
+                less_than_1.append(descriptor[1])
+            if descriptor[2] < 1:
+                less_than_1.append(descriptor[2])
         else:
-            err_codes.append(descriptor)
-
+            index[tuple(descriptor)] = [c1['id'], c2['id'], c3['id']]
 
     print(f"Valid Triads: {len(index)}")
     print(f"Swath Filtered: {swath_cnt}")
     print(f"Overlap Filtered: {overlap_cnt}")
-
-    print(f"No Valid z found: {len(err_codes) - sum(err_codes)}")
-    print(f"h/g errors: {sum(err_codes)}")
-    
+    print(f"Invariants Calculation Failed: {err_cnt}")
+    print(f"Less than 1: {len(less_than_1)}")
+    pdb.set_trace()
     with open('data/index.pkl', 'wb') as f:
         pickle.dump(index, f)
     print("Index saved to: index.pkl")

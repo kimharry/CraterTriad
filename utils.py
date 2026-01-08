@@ -1,26 +1,17 @@
 import numpy as np
 import pdb
-from config import R_MOON, K
+from config import R_MOON, K, ALTITUDE
 
 def sort_clockwise(craters):
     p1, p2, p3 = craters[0]['pos'], craters[1]['pos'], craters[2]['pos']
     
-    if len(p1) == 2:
-        # 2D case
-        p1 = np.append(p1, 0)
-        p2 = np.append(p2, 0)
-        p3 = np.append(p3, 0)
-
-    centroid = (p1 + p2 + p3) / 3
-    normal = np.cross(p2 - p1, p3 - p1)
-
-    if np.dot(normal, centroid) > 0:
+    if (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p2[1] - p1[1]) * (p3[0] - p1[0]) < 0:
         return [craters[2], craters[1], craters[0]]
 
     return craters
 
-def get_center_vector(lat, lon):
-    return R_MOON * np.array([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
+def get_center_vector(lat, lon, r=R_MOON):
+    return r * np.array([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)])
 
 def get_ENU_to_Moon_matrix(p_M):
     """
@@ -34,8 +25,25 @@ def get_ENU_to_Moon_matrix(p_M):
 
     return np.column_stack([e, n, u])
 
+def get_TMC(lat, lon):
+    p_M = get_center_vector(np.radians(lat), np.radians(lon), r=R_MOON + ALTITUDE)
+
+    T_M_C = get_ENU_to_Moon_matrix(p_M)
+    T_M_C[:, 2] = T_M_C[:, 2] * -1
+    return T_M_C
+
 def get_adjugate(M):
-    return np.linalg.pinv(M) * np.linalg.det(M)
+    m00, m01, m02 = M[0, 0], M[0, 1], M[0, 2]
+    m10, m11, m12 = M[1, 0], M[1, 1], M[1, 2]
+    m20, m21, m22 = M[2, 0], M[2, 1], M[2, 2]
+
+    adj = np.array([
+        [m11*m22 - m12*m21, -(m01*m22 - m02*m21), m01*m12 - m02*m11],
+        [-(m10*m22 - m12*m20), m00*m22 - m02*m20, -(m00*m12 - m02*m10)],
+        [m10*m21 - m11*m20, -(m00*m21 - m01*m20), m00*m11 - m01*m10]
+    ])
+    
+    return adj
 
 def get_2d_conic_matrix(theta, a, b, x_c=0, y_c=0):
     """
@@ -79,7 +87,7 @@ def get_disk_quadric(T_E_M, p_M, conic_matrix_2d):
 
     term1 = np.vstack([H_M, k])
     Q_star = term1 @ C_star @ term1.T
-
+    # pdb.set_trace()
     return Q_star
 
 def normalize_vector(v):
@@ -96,17 +104,25 @@ def calculate_invariants(A, c):
                          [v[2], 0, -v[0]],
                          [-v[1], v[0], 0]])
     
+    def cos_sim(v1, v2):
+        return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
+
     l = []
     for i, j in [(0, 1), (0, 2), (1, 2)]:
         A_i, A_j = normalize_vector(A[i]), normalize_vector(A[j])
+        # A_i, A_j = A[i], A[j]
         c_i, c_j = c[i], c[j]
         
-        eigs = np.linalg.eigvals(A_j @ np.linalg.pinv(-A_i))
+        eigs = np.linalg.eigvals(A_j @ np.linalg.inv(-A_i))
 
-        z_exists = False
+        valid_line_found = False
         for eig in eigs:
-            # pdb.set_trace()
-            B_ij = eig * A_i + A_j
+            if abs(eig.imag) > 1e-10:
+                continue
+            
+            lam = np.real(eig)
+
+            B_ij = lam * A_i + A_j
             B_ij_star = get_adjugate(B_ij)
             
             # k: index of the largest magnitude diagonal of B_ij_star
@@ -115,37 +131,51 @@ def calculate_invariants(A, c):
             if B_ij_star[k, k] < 0:
                 z = -B_ij_star[:, k] / np.sqrt(-B_ij_star[k, k])
                 z = z.real
-                z_exists = True
-                break
-        
-        if not z_exists:
-            # print("Error: no valid z found")
-            return 0
-        
-        D = B_ij + skew_symmetric(z.flatten())
-        # m, n: indices of the largest entry ||D_mn|| in D
-        m, n = np.unravel_index(np.argmax(np.abs(D)), D.shape)
 
-        h = np.array([D[m, 0], D[m, 1], D[m, 2]]).reshape(3, 1)
-        g = np.array([D[0, n], D[1, n], D[2, n]]).reshape(3, 1)
+                D = B_ij + skew_symmetric(z.flatten())
+                # m, n: indices of the largest entry ||D_mn|| in D
+                m, n = np.unravel_index(np.argmax(np.abs(D)), D.shape)
 
-        if h.T @ c_i * h.T @ c_j < 0:
-            l.append(h)
-        elif g.T @ c_i * g.T @ c_j < 0:
-            l.append(g)
-        else:
-            # print("Error: not enough elements in l")
-            return 1
+                g = D[:, n].reshape(3, 1)
+                h = D[m, :].reshape(3, 1)
+
+                pdb.set_trace()
+                if cos_sim(np.cross(g.flatten(), c_i.flatten()), np.cross(g.flatten(), c_j.flatten())) < 0:
+                    l.append(g)
+                    valid_line_found = True
+                    break
+                elif cos_sim(np.cross(h.flatten(), c_i.flatten()), np.cross(h.flatten(), c_j.flatten())) < 0:
+                    l.append(h)
+                    valid_line_found = True
+                    break
+        
+        if not valid_line_found:
+            # pdb.set_trace()
+            return None
+    
+    if len(l) < 3:
+        # pdb.set_trace()
+        return None
     
     A_star = [get_adjugate(Ai) for Ai in A]
     l_ij = l[0]
     l_ik = l[1]
     l_jk = l[2]
+
+    J1_val = np.linalg.norm(l_ij.T @ A_star[0] @ l_ik) / np.sqrt((l_ij.T @ A_star[0] @ l_ij) * (l_ik.T @ A_star[0] @ l_ik))
+    J2_val = np.linalg.norm(l_ij.T @ A_star[1] @ l_jk) / np.sqrt((l_ij.T @ A_star[1] @ l_ij) * (l_jk.T @ A_star[1] @ l_jk))
+    J3_val = np.linalg.norm(l_ij.T @ A_star[2] @ l_jk) / np.sqrt((l_ij.T @ A_star[2] @ l_ij) * (l_jk.T @ A_star[2] @ l_jk))
     
-    J1 = np.arccosh(np.linalg.norm(l_ij.T @ A_star[0] @ l_ik) / np.sqrt((l_ij.T @ A_star[0] @ l_ij) * (l_ik.T @ A_star[0] @ l_ik))).item() # ij, ik
-    J2 = np.arccosh(np.linalg.norm(l_ij.T @ A_star[1] @ l_jk) / np.sqrt((l_ij.T @ A_star[1] @ l_ij) * (l_jk.T @ A_star[1] @ l_jk))).item() # ij, jk
-    J3 = np.arccosh(np.linalg.norm(l_ik.T @ A_star[2] @ l_jk) / np.sqrt((l_ik.T @ A_star[2] @ l_ik) * (l_jk.T @ A_star[2] @ l_jk))).item() # ik, jk
-    # pdb.set_trace()
+    if J1_val == np.nan or J2_val == np.nan or J3_val == np.nan:
+        pdb.set_trace()
+        return None
+    if J1_val < 1 or J2_val < 1 or J3_val < 1:
+        return [J1_val.item(), J2_val.item(), J3_val.item(), False]
+
+    J1 = np.arccosh(J1_val).item()
+    J2 = np.arccosh(J2_val).item()
+    J3 = np.arccosh(J3_val).item()
+
     return [J1, J2, J3]
 
 
@@ -161,33 +191,34 @@ def EPS(craters, r):
                     combs.append([craters[i], craters[j], craters[k]])
     return combs
 
-def proj_db2img(T_M_C, r_M, Q_star):
+def proj_db2img(T_M_C, r_M, Q_star, K=K):
     """
         T_M_C: Moon to Camera transformation matrix
         r_M: 3D position vector of camera in Moon frame
         Q_star: Disk Quadric from database
 
-        Return: projected conic matrix
+        Return: projected 2d conic matrix, center of conic in image plane
     """
     P_M_C = K @ T_M_C @ np.hstack([np.eye(3), -r_M.reshape(3, 1)])
-    A_proj = P_M_C @ get_adjugate(Q_star) @ P_M_C.T
-    return A_proj
+    A_proj = P_M_C @ Q_star @ P_M_C.T
+    pdb.set_trace()
+    return A_proj, np.linalg.inv(K) @ P_M_C @ np.vstack([r_M.reshape(3, 1), 1])
 
 def conic_to_yY(A):
     A_uu = A[:2, :2]
     A_u1 = A[:2, 2]
     A_11 = A[2, 2]
 
-    y = -np.linalg.pinv(A_uu) @ A_u1
+    y = -np.linalg.inv(A_uu) @ A_u1
     
-    mu = A_u1.T @ np.linalg.pinv(A_uu) @ A_u1 - A_11
+    mu = A_u1.T @ np.linalg.inv(A_uu) @ A_u1 - A_11
     Y = (1.0 / mu) * A_uu
     
     return y, Y
 
 def d_GA(y_i, y_j, Y_i, Y_j):
     coeff = 4 * np.sqrt(np.linalg.det(Y_i) * np.linalg.det(Y_j)) / np.linalg.det(Y_i + Y_j)
-    exp = np.exp(-0.5 * (y_i - y_j).T @ Y_i @ np.linalg.pinv(Y_i + Y_j) @ Y_j @ (y_i - y_j))
+    exp = np.exp(-0.5 * (y_i - y_j).T @ Y_i @ np.linalg.inv(Y_i + Y_j) @ Y_j @ (y_i - y_j))
     return np.arccos(coeff * exp)
 
 def variance(a, b, sigma_img):
