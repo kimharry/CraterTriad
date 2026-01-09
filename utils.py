@@ -30,7 +30,7 @@ def get_TMC(lat, lon):
 
     T_M_C = get_ENU_to_Moon_matrix(p_M)
     T_M_C[:, 2] = T_M_C[:, 2] * -1
-    return T_M_C
+    return T_M_C.T
 
 def get_adjugate(M):
     m00, m01, m02 = M[0, 0], M[0, 1], M[0, 2]
@@ -103,14 +103,11 @@ def calculate_invariants(A, c):
         return np.array([[0, -v[2], v[1]],
                          [v[2], 0, -v[0]],
                          [-v[1], v[0], 0]])
-    
-    def cos_sim(v1, v2):
-        return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
 
     l = []
-    for i, j in [(0, 1), (0, 2), (1, 2)]:
-        A_i, A_j = normalize_vector(A[i]), normalize_vector(A[j])
-        # A_i, A_j = A[i], A[j]
+    for i, j in [(0, 1), (1, 2), (2, 0)]:
+        # A_i, A_j = normalize_vector(A[i]), normalize_vector(A[j])
+        A_i, A_j = A[i], A[j]
         c_i, c_j = c[i], c[j]
         
         eigs = np.linalg.eigvals(A_j @ np.linalg.inv(-A_i))
@@ -119,10 +116,8 @@ def calculate_invariants(A, c):
         for eig in eigs:
             if abs(eig.imag) > 1e-10:
                 continue
-            
-            lam = np.real(eig)
 
-            B_ij = lam * A_i + A_j
+            B_ij = eig * A_i + A_j
             B_ij_star = get_adjugate(B_ij)
             
             # k: index of the largest magnitude diagonal of B_ij_star
@@ -130,7 +125,6 @@ def calculate_invariants(A, c):
 
             if B_ij_star[k, k] < 0:
                 z = -B_ij_star[:, k] / np.sqrt(-B_ij_star[k, k])
-                z = z.real
 
                 D = B_ij + skew_symmetric(z.flatten())
                 # m, n: indices of the largest entry ||D_mn|| in D
@@ -139,12 +133,17 @@ def calculate_invariants(A, c):
                 g = D[:, n].reshape(3, 1)
                 h = D[m, :].reshape(3, 1)
 
-                pdb.set_trace()
-                if cos_sim(np.cross(g.flatten(), c_i.flatten()), np.cross(g.flatten(), c_j.flatten())) < 0:
+                # pdb.set_trace()
+                epsilon = 1e-8
+                valid_g_i = np.dot(g.flatten(), c_i.flatten())
+                valid_g_j = np.dot(g.flatten(), c_j.flatten())
+                valid_h_i = np.dot(h.flatten(), c_i.flatten())
+                valid_h_j = np.dot(h.flatten(), c_j.flatten())
+                if valid_g_i * valid_g_j < 0 and abs(valid_g_i) > epsilon and abs(valid_g_j) > epsilon:
                     l.append(g)
                     valid_line_found = True
                     break
-                elif cos_sim(np.cross(h.flatten(), c_i.flatten()), np.cross(h.flatten(), c_j.flatten())) < 0:
+                elif valid_h_i * valid_h_j < 0 and abs(valid_h_i) > epsilon and abs(valid_h_j) > epsilon:
                     l.append(h)
                     valid_line_found = True
                     break
@@ -164,13 +163,19 @@ def calculate_invariants(A, c):
 
     J1_val = np.linalg.norm(l_ij.T @ A_star[0] @ l_ik) / np.sqrt((l_ij.T @ A_star[0] @ l_ij) * (l_ik.T @ A_star[0] @ l_ik))
     J2_val = np.linalg.norm(l_ij.T @ A_star[1] @ l_jk) / np.sqrt((l_ij.T @ A_star[1] @ l_ij) * (l_jk.T @ A_star[1] @ l_jk))
-    J3_val = np.linalg.norm(l_ij.T @ A_star[2] @ l_jk) / np.sqrt((l_ij.T @ A_star[2] @ l_ij) * (l_jk.T @ A_star[2] @ l_jk))
+    J3_val = np.linalg.norm(l_ik.T @ A_star[2] @ l_jk) / np.sqrt((l_ik.T @ A_star[2] @ l_ik) * (l_jk.T @ A_star[2] @ l_jk))
     
     if J1_val == np.nan or J2_val == np.nan or J3_val == np.nan:
-        pdb.set_trace()
         return None
-    if J1_val < 1 or J2_val < 1 or J3_val < 1:
+    if J1_val < 0.999 or J2_val < 0.999 or J3_val < 0.999:
         return [J1_val.item(), J2_val.item(), J3_val.item(), False]
+    
+    if 0.999 <= J1_val < 1.0:
+        J1_val = 1.0
+    if 0.999 <= J2_val < 1.0:
+        J2_val = 1.0
+    if 0.999 <= J3_val < 1.0:
+        J3_val = 1.0
 
     J1 = np.arccosh(J1_val).item()
     J2 = np.arccosh(J2_val).item()
@@ -201,8 +206,13 @@ def proj_db2img(T_M_C, r_M, Q_star, K=K):
     """
     P_M_C = K @ T_M_C @ np.hstack([np.eye(3), -r_M.reshape(3, 1)])
     A_proj = P_M_C @ Q_star @ P_M_C.T
-    pdb.set_trace()
-    return A_proj, np.linalg.inv(K) @ P_M_C @ np.vstack([r_M.reshape(3, 1), 1])
+
+    A_uu = A_proj[:2, :2]
+    A_u1 = A_proj[:2, 2]
+
+    center_2d = -np.linalg.inv(A_uu) @ A_u1
+
+    return A_proj, np.array([center_2d[0], center_2d[1], 1.0])
 
 def conic_to_yY(A):
     A_uu = A[:2, :2]

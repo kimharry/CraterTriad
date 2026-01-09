@@ -17,6 +17,7 @@ def build_index():
     swath_cnt = 0
     overlap_cnt = 0
     less_than_1 = []
+    less_than_1_cnt = 0
     err_cnt = 0
     for comb in tqdm(combinations(craters, 3), total=len(list(combinations(craters, 3))), desc="Building index"):
         c1 = craters[comb[0]]
@@ -34,9 +35,9 @@ def build_index():
             continue
         
         # Overlap check
-        if (d12 < c1['b'] + c2['b']) or \
-           (d23 < c2['b'] + c3['b']) or \
-           (d31 < c3['b'] + c1['b']):
+        if (d12 < c1['a'] + c2['a'] + 2) or \
+           (d23 < c2['a'] + c3['a'] + 2) or \
+           (d31 < c3['a'] + c1['a'] + 2):
             overlap_cnt += 1
             continue
             
@@ -64,6 +65,7 @@ def build_index():
                 less_than_1.append(descriptor[1])
             if descriptor[2] < 1:
                 less_than_1.append(descriptor[2])
+            less_than_1_cnt += 1
         else:
             index[tuple(descriptor)] = [c1['id'], c2['id'], c3['id']]
 
@@ -71,8 +73,7 @@ def build_index():
     print(f"Swath Filtered: {swath_cnt}")
     print(f"Overlap Filtered: {overlap_cnt}")
     print(f"Invariants Calculation Failed: {err_cnt}")
-    print(f"Less than 1: {len(less_than_1)}")
-    pdb.set_trace()
+    print(f"Less than 1: {less_than_1_cnt}")
     with open('data/index.pkl', 'wb') as f:
         pickle.dump(index, f)
     print("Index saved to: index.pkl")
