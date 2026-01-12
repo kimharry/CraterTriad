@@ -18,6 +18,7 @@ def build_index():
     overlap_cnt = 0
     less_than_1 = []
     less_than_1_cnt = 0
+    one_cnt = []
     err_cnt = 0
     for comb in tqdm(combinations(craters, 3), total=len(list(combinations(craters, 3))), desc="Building index"):
         c1 = craters[comb[0]]
@@ -54,7 +55,7 @@ def build_index():
             c.append(center)
 
         # pdb.set_trace()
-        descriptor = calculate_invariants(A, c)
+        descriptor = calculate_invariants(A, c, [c1['a'], c2['a'], c3['a']])
 
         if descriptor is None:
             err_cnt += 1
@@ -67,13 +68,17 @@ def build_index():
                 less_than_1.append(descriptor[2])
             less_than_1_cnt += 1
         else:
-            index[tuple(descriptor)] = [c1['id'], c2['id'], c3['id']]
+            index[tuple(descriptor[:-1])] = [c1['id'], c2['id'], c3['id']]
+            one_cnt.append(descriptor[-1])
 
     print(f"Valid Triads: {len(index)}")
     print(f"Swath Filtered: {swath_cnt}")
     print(f"Overlap Filtered: {overlap_cnt}")
     print(f"Invariants Calculation Failed: {err_cnt}")
     print(f"Less than 1: {less_than_1_cnt}")
+    print(f"One cnt: {len(one_cnt)}")
+    pdb.set_trace()
+
     with open('data/index.pkl', 'wb') as f:
         pickle.dump(index, f)
     print("Index saved to: index.pkl")
