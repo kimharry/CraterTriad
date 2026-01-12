@@ -29,7 +29,7 @@ def get_ENU_to_Moon_matrix(p_M):
     return np.column_stack([e, n, u])
 
 def get_TMC(lat, lon):
-    p_M = get_center_vector(np.radians(lat), np.radians(lon), r=R_MOON + ALTITUDE)
+    p_M = get_center_vector(lat, lon, r=R_MOON + ALTITUDE)
 
     T_M_C = get_ENU_to_Moon_matrix(p_M)
     T_M_C[:, 2] = T_M_C[:, 2] * -1
@@ -95,9 +95,9 @@ def get_disk_quadric(T_E_M, p_M, conic_matrix_2d):
     Q_star = term1 @ C_star @ term1.T
     return normalize_vector(Q_star)
 
-def calculate_invariants(A, c, a):
+def calculate_invariants(A_star, c, a):
     """
-        A: list of 3x3 matrices representing conic sections
+        A_star: list of 3x3 matrices representing conic sections
         c: list of crater centers
     """
 
@@ -107,8 +107,9 @@ def calculate_invariants(A, c, a):
                          [-v[1], v[0], 0]])
 
     l = []
+    A_point = [np.linalg.inv(A) for A in A_star]
     for i, j in [(0, 1), (1, 2), (2, 0)]:
-        A_i, A_j = A[i], A[j]
+        A_i, A_j = A_point[i], A_point[j]
         c_i, c_j = c[i], c[j]
         
         eigs = np.linalg.eigvals(A_j @ np.linalg.inv(-A_i))
@@ -157,7 +158,6 @@ def calculate_invariants(A, c, a):
         # pdb.set_trace()
         return None
     
-    A_star = [get_adjugate(Ai) for Ai in A]
     l_ij = l[0]
     l_ik = l[1]
     l_jk = l[2]
@@ -251,16 +251,8 @@ def proj_db2img(T_M_C, r_M, Q_star, K=K):
 
         Return: projected 2d conic matrix, center of conic in image plane
     """
-    P_M_C = K @ T_M_C.T @ np.hstack([np.eye(3), -r_M.reshape(3, 1)])
+    P_M_C = K @ T_M_C @ np.hstack([np.eye(3), -r_M.reshape(3, 1)])
     A_dual = P_M_C @ Q_star @ P_M_C.T
-
-    try:
-        A_proj = np.linalg.inv(A_dual)
-    except:
-        return None
-    
-    if np.trace(A_proj[:2, :2]) < 1e-10:
-        A_proj = -A_proj
 
     c_homo = A_dual[:, 2]
 
@@ -269,12 +261,7 @@ def proj_db2img(T_M_C, r_M, Q_star, K=K):
     else:
         center = np.array([0, 0, 1])
 
-    val_at_center = center.T @ A_proj @ center
-    breakpoint()
-    if val_at_center >= 0:
-        return None
-
-    return A_proj, center
+    return normalize_vector(A_dual), center
 
 def conic_to_yY(A):
     A_uu = A[:2, :2]
