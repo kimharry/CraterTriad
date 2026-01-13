@@ -4,7 +4,6 @@ from tqdm import tqdm
 import pickle
 from utils import sort_clockwise, calculate_invariants, proj_db2img, get_center_vector, get_TMC
 from config import SWATH, R_MOON, ALTITUDE
-import pdb
 
 def build_index():
     with open('data/filtered_craters_local.pkl', 'rb') as f:
@@ -30,15 +29,14 @@ def build_index():
         d31 = np.linalg.norm(c3['pos'] - c1['pos'])
 
         # Swath check
-        max_d = SWATH * np.sqrt(2)
-        if (d12 > max_d) or (d23 > max_d) or (d31 > max_d):
+        if (d12+c1['a']+c2['a'] > SWATH) or (d23+c2['a']+c3['a'] > SWATH) or (d31+c3['a']+c1['a'] > SWATH):
             swath_cnt += 1
             continue
         
         # Overlap check
-        if (d12 < c1['a'] + c2['a'] + 2) or \
-           (d23 < c2['a'] + c3['a'] + 2) or \
-           (d31 < c3['a'] + c1['a'] + 2):
+        if (d12 < c1['a'] + c2['a']) or \
+           (d23 < c2['a'] + c3['a']) or \
+           (d31 < c3['a'] + c1['a']):
             overlap_cnt += 1
             continue
             
@@ -48,14 +46,13 @@ def build_index():
         r_M = get_center_vector(center_lat, center_lon, r=R_MOON + ALTITUDE)
         T_M_C = get_TMC(center_lat, center_lon)
 
-        A, c = [], []
+        As, A_stars = [], []
         for crater in [c1, c2, c3]:
-            conic, center = proj_db2img(T_M_C, r_M, crater['Q_star'], np.eye(3))
-            A.append(conic)
-            c.append(center)
+            A_star, A = proj_db2img(T_M_C, r_M, crater['Q_star'])
+            A_stars.append(A_star)
+            As.append(A)
 
-        # pdb.set_trace()
-        descriptor = calculate_invariants(A, c, [c1['a'], c2['a'], c3['a']])
+        descriptor = calculate_invariants(As, A_stars)
 
         if descriptor is None:
             err_cnt += 1
@@ -77,7 +74,7 @@ def build_index():
     print(f"Invariants Calculation Failed: {err_cnt}")
     print(f"Less than 1: {less_than_1_cnt}")
     print(f"One cnt: {len(one_cnt)}")
-    pdb.set_trace()
+    breakpoint()
 
     with open('data/index.pkl', 'wb') as f:
         pickle.dump(index, f)

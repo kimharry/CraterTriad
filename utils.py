@@ -1,9 +1,7 @@
 import numpy as np
-import pdb
-
-from torch import fill
 from config import R_MOON, K, ALTITUDE
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
 
 def sort_clockwise(craters):
     p1, p2, p3 = craters[0]['pos'], craters[1]['pos'], craters[2]['pos']
@@ -31,9 +29,12 @@ def get_ENU_to_Moon_matrix(p_M):
 def get_TMC(lat, lon):
     p_M = get_center_vector(lat, lon, r=R_MOON + ALTITUDE)
 
-    T_M_C = get_ENU_to_Moon_matrix(p_M)
-    T_M_C[:, 2] = T_M_C[:, 2] * -1
-    return T_M_C.T
+    T_E_M = get_ENU_to_Moon_matrix(p_M)
+    e = T_E_M[:, 0]
+    n = T_E_M[:, 1]
+    u = T_E_M[:, 2] * -1
+
+    return np.column_stack([e, n, u])
 
 def get_adjugate(M):
     m00, m01, m02 = M[0, 0], M[0, 1], M[0, 2]
@@ -51,7 +52,7 @@ def get_adjugate(M):
 def normalize_vector(v):
     return v / np.linalg.norm(v)
 
-def get_2d_conic_matrix(theta, a, b, x_c=0, y_c=0):
+def get_conic_locus_matrix(theta, a, b, x_c=0, y_c=0):
     """
     Convert crater parameters to 2D conic matrix.
     """
@@ -73,16 +74,32 @@ def get_2d_conic_matrix(theta, a, b, x_c=0, y_c=0):
         [B/2, C,   F/2],
         [D/2, F/2, G  ]
     ])
-    
-    return normalize_vector(M)
 
-def get_disk_quadric(T_E_M, p_M, conic_matrix_2d):
+    det_M = np.linalg.det(M)
+    if abs(det_M) < 1e-10:
+        return None
+    
+    # For ellipse, det should be negative
+    # Normalize: det(M) = -1
+    scale = abs(det_M) ** (1/3)
+    M = M / scale
+    
+    # Ensure det(M) < 0
+    if np.linalg.det(M) > 0:
+        M = -M
+
+    return M
+
+def get_disk_quadric(T_E_M, p_M, C):
     """
         T_E_M: Transformation matrix from ENU to Moon-centered coordinates (3x3)
         p_M: Crater center position in Moon-centered coordinates (3x1)
-        conic_matrix_2d: 2D conic matrix representing the crater shape
+        C: 2D conic locus matrix representing the crater shape
     """
-    C_star = get_adjugate(conic_matrix_2d)
+    if np.linalg.det(C) < 1e-10:
+        C_star = get_adjugate(C)
+    else:
+        C_star = np.linalg.inv(C)
     S = np.array([
         [1, 0],
         [0, 1],
@@ -93,12 +110,16 @@ def get_disk_quadric(T_E_M, p_M, conic_matrix_2d):
 
     term1 = np.vstack([H_M, k])
     Q_star = term1 @ C_star @ term1.T
-    return normalize_vector(Q_star)
+    
+    Q_star = 0.5 * (Q_star + Q_star.T)
+    return Q_star
 
-def calculate_invariants(A_star, c, a):
+def calculate_invariants(As, A_stars):
     """
-        A_star: list of 3x3 matrices representing conic sections
-        c: list of crater centers
+        As: list of conic locus matrices
+        A_stars: list of conic envelope matrices
+
+        Return: list of invariants
     """
 
     def skew_symmetric(v):
@@ -106,11 +127,11 @@ def calculate_invariants(A_star, c, a):
                          [v[2], 0, -v[0]],
                          [-v[1], v[0], 0]])
 
+    ellipses = [get_ellipse_params(A) for A in As]
     l = []
-    A_point = [np.linalg.inv(A) for A in A_star]
-    for i, j in [(0, 1), (1, 2), (2, 0)]:
-        A_i, A_j = A_point[i], A_point[j]
-        c_i, c_j = c[i], c[j]
+    for i, j in [(0, 1), (1, 2), (0, 2)]:
+        A_i, A_j = As[i], As[j]
+        c_i, c_j = np.array([ellipses[i][0][0], ellipses[i][0][1], 1.0]), np.array([ellipses[j][0][0], ellipses[j][0][1], 1.0])
         
         eigs = np.linalg.eigvals(A_j @ np.linalg.inv(-A_i))
 
@@ -132,14 +153,14 @@ def calculate_invariants(A_star, c, a):
                 # m, n: indices of the largest entry ||D_mn|| in D
                 m, n = np.unravel_index(np.argmax(np.abs(D)), D.shape)
 
-                g = normalize_vector(D[:, n].reshape(3, 1))
-                h = normalize_vector(D[m, :].reshape(3, 1))
+                g = normalize_vector(D[:, n]).reshape(3, 1)
+                h = normalize_vector(D[m, :]).reshape(3, 1)
 
                 epsilon = 1e-6
-                valid_g_i = np.dot(g.flatten(), c_i.flatten())
-                valid_g_j = np.dot(g.flatten(), c_j.flatten())
-                valid_h_i = np.dot(h.flatten(), c_i.flatten())
-                valid_h_j = np.dot(h.flatten(), c_j.flatten())
+                valid_g_i = np.dot(g.flatten(), c_i)
+                valid_g_j = np.dot(g.flatten(), c_j)
+                valid_h_i = np.dot(h.flatten(), c_i)
+                valid_h_j = np.dot(h.flatten(), c_j)
 
                 if valid_g_i * valid_g_j < 0 and abs(valid_g_i) > epsilon and abs(valid_g_j) > epsilon:
                     l.append(h)
@@ -151,67 +172,64 @@ def calculate_invariants(A_star, c, a):
                     break
         
         if not valid_line_found:
-            # pdb.set_trace()
             return None
     
     if len(l) < 3:
-        # pdb.set_trace()
         return None
     
     l_ij = l[0]
-    l_ik = l[1]
-    l_jk = l[2]
+    l_jk = l[1]
+    l_ik = l[2]
 
     # draw A_i, A_j, g, h
-    fig, ax = plt.subplots(figsize=(10, 10))
-    ax.add_patch(plt.Circle((c[0][0], c[0][1]), a[0], color='r', fill=False, label='A_i')) # A_i (ellipse center)
-    ax.add_patch(plt.Circle((c[1][0], c[1][1]), a[1], color='g', fill=False, label='A_j')) # A_j (ellipse center)
-    ax.add_patch(plt.Circle((c[2][0], c[2][1]), a[2], color='b', fill=False, label='A_k')) # A_k (ellipse center)
+    # fig, ax = plt.subplots(figsize=(10, 10))
+    # ax.add_patch(Ellipse(ellipses[0][0], 2*ellipses[0][1], 2*ellipses[0][2], angle=ellipses[0][3], color='r', fill=False, label='A_i'))
+    # ax.add_patch(Ellipse(ellipses[1][0], 2*ellipses[1][1], 2*ellipses[1][2], angle=ellipses[1][3], color='g', fill=False, label='A_j'))
+    # ax.add_patch(Ellipse(ellipses[2][0], 2*ellipses[2][1], 2*ellipses[2][2], angle=ellipses[2][3], color='b', fill=False, label='A_k'))
 
-    x_lim = [min(c[0][0]-a[0], c[1][0]-a[1], c[2][0]-a[2]) - 1, max(c[0][0]+a[0], c[1][0]+a[1], c[2][0]+a[2]) + 1]
-    y_lim = [min(c[0][1]-a[0], c[1][1]-a[1], c[2][1]-a[2]) - 1, max(c[0][1]+a[0], c[1][1]+a[1], c[2][1]+a[2]) + 1]
+    # x_lim = [min(ellipses[0][0][0]-ellipses[0][0][1], ellipses[1][0][0]-ellipses[1][0][1], ellipses[2][0][0]-ellipses[2][0][1]) - 1, \
+    #          max(ellipses[0][0][0]+ellipses[0][0][1], ellipses[1][0][0]+ellipses[1][0][1], ellipses[2][0][0]+ellipses[2][0][1]) + 1]
+    # y_lim = [min(ellipses[0][0][1]-ellipses[0][0][1], ellipses[1][0][1]-ellipses[1][0][1], ellipses[2][0][1]-ellipses[2][0][1]) - 1, \
+    #          max(ellipses[0][0][1]+ellipses[0][0][1], ellipses[1][0][1]+ellipses[1][0][1], ellipses[2][0][1]+ellipses[2][0][1]) + 1]
 
-    l1_vec = l_ij.flatten()
-    l2_vec = l_ik.flatten()
-    l3_vec = l_jk.flatten()
+    # l1_vec = l_ij.flatten()
+    # l2_vec = l_ik.flatten()
+    # l3_vec = l_jk.flatten()
 
-    l1_x_vals = np.array(x_lim)
-    l1_y_vals = (-l1_vec[0] * l1_x_vals - l1_vec[2]) / l1_vec[1]
-    ax.plot(l1_x_vals, l1_y_vals, 'r', label='l1') # g (line vector)
+    # l1_x_vals = np.array(x_lim)
+    # l1_y_vals = (-l1_vec[0] * l1_x_vals) / l1_vec[1]
+    # ax.plot(l1_x_vals, l1_y_vals, 'r', label='l1')
     
-    l2_x_vals = np.array(x_lim)
-    l2_y_vals = (-l2_vec[0] * l2_x_vals - l2_vec[2]) / l2_vec[1]
-    ax.plot(l2_x_vals, l2_y_vals, 'g', label='l2') # h (line vector)
+    # l2_x_vals = np.array(x_lim)
+    # l2_y_vals = (-l2_vec[0] * l2_x_vals) / l2_vec[1]
+    # ax.plot(l2_x_vals, l2_y_vals, 'g', label='l2')
 
-    l3_x_vals = np.array(x_lim)
-    l3_y_vals = (-l3_vec[0] * l3_x_vals - l3_vec[2]) / l3_vec[1]
-    ax.plot(l3_x_vals, l3_y_vals, 'b', label='l3') # h (line vector)
+    # l3_x_vals = np.array(x_lim)
+    # l3_y_vals = (-l3_vec[0] * l3_x_vals) / l3_vec[1]
+    # ax.plot(l3_x_vals, l3_y_vals, 'b', label='l3')
 
-    ax.set_xlim(x_lim)
-    ax.set_ylim(y_lim)
-    ax.set_aspect('equal')
-    ax.grid(True)
-    ax.legend()
-    plt.show()
+    # ax.set_xlim(x_lim)
+    # ax.set_ylim(y_lim)
+    # ax.set_aspect('equal')
+    # ax.grid(True)
+    # ax.legend()
+    # # breakpoint()
+    # plt.show()
 
-    # pdb.set_trace()
-    plt.close()
-
-    term1 = (l_ij.T @ A_star[0] @ l_ij) * (l_ik.T @ A_star[0] @ l_ik)
-    term2 = (l_ij.T @ A_star[1] @ l_ij) * (l_jk.T @ A_star[1] @ l_jk)
-    term3 = (l_ik.T @ A_star[2] @ l_ik) * (l_jk.T @ A_star[2] @ l_jk)
+    term1 = (l_ij.T @ A_stars[0] @ l_ij).item() * (l_ik.T @ A_stars[0] @ l_ik).item()
+    term2 = (l_ij.T @ A_stars[1] @ l_ij).item() * (l_jk.T @ A_stars[1] @ l_jk).item()
+    term3 = (l_ik.T @ A_stars[2] @ l_ik).item() * (l_jk.T @ A_stars[2] @ l_jk).item()
     if term1 < 0 or term2 < 0 or term3 < 0:
-        # pdb.set_trace()
         return None
 
-    J1_val = np.linalg.norm(l_ij.T @ A_star[0] @ l_ik) / np.sqrt(term1)
-    J2_val = np.linalg.norm(l_ij.T @ A_star[1] @ l_jk) / np.sqrt(term2)
-    J3_val = np.linalg.norm(l_ik.T @ A_star[2] @ l_jk) / np.sqrt(term3)
+    J1_val = np.abs(l_ij.T @ A_stars[0] @ l_ik).item() / np.sqrt(term1)
+    J2_val = np.abs(l_ij.T @ A_stars[1] @ l_jk).item() / np.sqrt(term2)
+    J3_val = np.abs(l_ik.T @ A_stars[2] @ l_jk).item() / np.sqrt(term3)
     
-    if J1_val == np.nan or J2_val == np.nan or J3_val == np.nan:
+    if np.isnan(J1_val) or np.isnan(J2_val) or np.isnan(J3_val):
         return None
     if J1_val < 0.999 or J2_val < 0.999 or J3_val < 0.999:
-        return [J1_val.item(), J2_val.item(), J3_val.item(), False]
+        return [J1_val, J2_val, J3_val, False]
     
     one_cnt = 0
     if 0.999 <= J1_val <= 1.0:
@@ -224,9 +242,9 @@ def calculate_invariants(A_star, c, a):
         J3_val = 1.0
         one_cnt += 1
 
-    J1 = np.arccosh(J1_val).item()
-    J2 = np.arccosh(J2_val).item()
-    J3 = np.arccosh(J3_val).item()
+    J1 = np.arccosh(J1_val)
+    J2 = np.arccosh(J2_val)
+    J3 = np.arccosh(J3_val)
 
     return [J1, J2, J3, one_cnt]
 
@@ -249,19 +267,26 @@ def proj_db2img(T_M_C, r_M, Q_star, K=K):
         r_M: 3D position vector of camera in Moon frame
         Q_star: Disk Quadric from database
 
-        Return: projected 2d conic matrix, center of conic in image plane
+        Return: projected 2d conic envelope matrix, conic locus matrix
     """
-    P_M_C = K @ T_M_C @ np.hstack([np.eye(3), -r_M.reshape(3, 1)])
-    A_dual = P_M_C @ Q_star @ P_M_C.T
+    P_M_C = K @ T_M_C.T @ np.hstack([np.eye(3), -r_M.reshape(3, 1)])
+    A_star = P_M_C @ Q_star @ P_M_C.T
+    A_star = 0.5 * (A_star + A_star.T)
 
-    c_homo = A_dual[:, 2]
-
-    if abs(c_homo[2]) > 1e-10:
-        center = c_homo / c_homo[2]
-    else:
-        center = np.array([0, 0, 1])
-
-    return normalize_vector(A_dual), center
+    A = get_adjugate(A_star)
+    
+    det_A = np.linalg.det(A)
+    if det_A > 0:
+        A = -A
+        det_A = -det_A
+    
+    scale = np.abs(det_A) ** (1/3)
+    if scale > 1e-10:
+        A /= scale
+    
+    A = 0.5 * (A + A.T)
+    
+    return A_star, A
 
 def conic_to_yY(A):
     A_uu = A[:2, :2]
@@ -282,3 +307,39 @@ def d_GA(y_i, y_j, Y_i, Y_j):
 
 def variance(a, b, sigma_img):
     return 0.85**2 / (a * b) * sigma_img**2
+
+def get_ellipse_params(A):
+    a = A[0, 0]
+    b = 2 * A[0, 1]
+    c = A[1, 1]
+    d = 2 * A[0, 2]
+    f = 2 * A[1, 2]
+    g = A[2, 2]
+
+    det = a*c - (b/2)**2
+    x0 = (b * f/2 - c * d) / (2 * det)
+    y0 = (b * d/2 - a * f) / (2 * det)
+    
+    Y = np.array([
+        [a, b/2],
+        [b/2, c]
+    ])
+
+    eigvals, eigvecs = np.linalg.eig(Y)
+    
+    idx = np.argsort(eigvals)
+    eigvals = eigvals[idx]
+    eigvecs = eigvecs[:, idx]
+
+    f_prime = g + d*x0 + f*y0
+
+    if eigvals[0] < 0 or eigvals[1] < 0 or f_prime > 0:
+        return None
+    
+    a = np.sqrt(-f_prime / eigvals[0])
+    b = np.sqrt(-f_prime / eigvals[1])
+    angle = np.degrees(np.arctan2(eigvecs[1, 0], eigvecs[0, 0]))
+    if angle < 0:
+        angle += 180
+
+    return (x0, y0), a, b, angle

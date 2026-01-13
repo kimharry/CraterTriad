@@ -1,6 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-from utils import get_center_vector, get_2d_conic_matrix, get_ENU_to_Moon_matrix, get_disk_quadric
+from utils import get_center_vector, get_conic_locus_matrix, get_ENU_to_Moon_matrix, get_disk_quadric
 import numpy as np
 import pickle
 from config import MIN_LAT, MAX_LAT, MIN_LON, MAX_LON, MAX_AXIS_KM, MIN_ARC, MIN_PTS
@@ -40,8 +40,8 @@ def filter_craters(file_path, output_path):
         
         p_M = get_center_vector(lat, lon)
         T_E_M = get_ENU_to_Moon_matrix(p_M)
-        conic_matrix_2d = get_2d_conic_matrix(theta, a, b)
-        disk_quadric = get_disk_quadric(T_E_M, p_M, conic_matrix_2d)
+        conic_locus_matrix = get_conic_locus_matrix(theta, a, b)
+        disk_quadric = get_disk_quadric(T_E_M, p_M, conic_locus_matrix)
         
         craters[row['CRATER_ID']] = {
             'id': row['CRATER_ID'],
@@ -52,7 +52,7 @@ def filter_craters(file_path, output_path):
             'b': b,
             'theta': theta,
             'T_E_M': T_E_M,
-            'conic_matrix': conic_matrix_2d,
+            'conic_matrix': conic_locus_matrix,
             'Q_star': disk_quadric
         }
 

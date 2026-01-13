@@ -25,17 +25,20 @@ LON_AVG = (MIN_LON + MAX_LON) / 2
 ALTITUDE = 50 # km
 FOV = 30 # degrees
 SWATH = ALTITUDE * np.tan(np.radians(FOV/2)) * 2
+IMG_WIDTH = 1000
+IMG_HEIGHT = 1000
 
+f_pixels = (IMG_WIDTH / 2) / np.tan(np.radians(FOV/2))
 K = np.array([
-    [1866.03, 0.0, 500.0],
-    [0.0, 1866.03, 500.0],
+    [f_pixels, 0.0, IMG_WIDTH/2],
+    [0.0, f_pixels, IMG_HEIGHT/2],
     [0.0, 0.0, 1.0]
 ])
 
 # T_M_C = np.array([
-#         [0.0, 0.0, -1.0],
+#         [0.0, 0.0, 1.0],
 #         [0.0, 1.0, 0.0],
-#         [1.0, 0.0, 0.0]
+#         [-1.0, 0.0, 0.0]
 #     ])
 
 # Nadir-pointing, ENU-aligned
