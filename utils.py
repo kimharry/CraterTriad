@@ -122,7 +122,7 @@ def calculate_invariants(As, A_stars):
                          [v[2], 0, -v[0]],
                          [-v[1], v[0], 0]])
 
-    def visualize(ellipses, l_ij, l_ik, l_jk):
+    def visualize(ellipses, l_12, l_23, l_31):
         # draw A_i, A_j, g, h
         centers = [ellipse['center'] for ellipse in ellipses]
         majors = [ellipse['major'] for ellipse in ellipses]
@@ -142,21 +142,21 @@ def calculate_invariants(As, A_stars):
         x_lim = [0, 1000]
         y_lim = [1000, 0]
 
-        l1_vec = l_ij.flatten()
-        l2_vec = l_ik.flatten()
-        l3_vec = l_jk.flatten()
+        l12_vec = l_12.flatten()
+        l23_vec = l_23.flatten()
+        l31_vec = l_31.flatten()
 
-        l1_x_vals = np.array(x_lim)
-        l1_y_vals = (-l1_vec[0] * l1_x_vals - l1_vec[2]) / l1_vec[1]
-        ax.plot(l1_x_vals, l1_y_vals, 'r', label='l1')
+        l12_x_vals = np.array(x_lim)
+        l12_y_vals = (-l12_vec[0] * l12_x_vals - l12_vec[2]) / l12_vec[1]
+        ax.plot(l12_x_vals, l12_y_vals, 'r', label='l12')
         
-        l2_x_vals = np.array(x_lim)
-        l2_y_vals = (-l2_vec[0] * l2_x_vals - l2_vec[2]) / l2_vec[1]
-        ax.plot(l2_x_vals, l2_y_vals, 'g', label='l2')
+        l23_x_vals = np.array(x_lim)
+        l23_y_vals = (-l23_vec[0] * l23_x_vals - l23_vec[2]) / l23_vec[1]
+        ax.plot(l23_x_vals, l23_y_vals, 'g', label='l23')
 
-        l3_x_vals = np.array(x_lim)
-        l3_y_vals = (-l3_vec[0] * l3_x_vals - l3_vec[2]) / l3_vec[1]
-        ax.plot(l3_x_vals, l3_y_vals, 'b', label='l3')
+        l31_x_vals = np.array(x_lim)
+        l31_y_vals = (-l31_vec[0] * l31_x_vals - l31_vec[2]) / l31_vec[1]
+        ax.plot(l31_x_vals, l31_y_vals, 'b', label='l31')
 
         ax.set_xlim(x_lim)
         ax.set_ylim(y_lim)
@@ -168,7 +168,7 @@ def calculate_invariants(As, A_stars):
 
     ellipses = [get_ellipse_params(A) for A in As]
     l = []
-    for i, j in [(0, 1), (1, 2), (0, 2)]:
+    for i, j in [(0, 1), (1, 2), (2, 0)]:
         A_i, A_j = As[i], As[j]
         c_i = np.array([ellipses[i]['center'][0], ellipses[i]['center'][1], 1.0])
         c_j = np.array([ellipses[j]['center'][0], ellipses[j]['center'][1], 1.0])
@@ -202,12 +202,14 @@ def calculate_invariants(As, A_stars):
                 valid_h_i = np.dot(h.flatten(), c_i)
                 valid_h_j = np.dot(h.flatten(), c_j)
 
+                # breakpoint()
+                # visualize(ellipses, g, h)
                 if valid_g_i * valid_g_j < 0 and abs(valid_g_i) > epsilon and abs(valid_g_j) > epsilon:
-                    l.append(h)
+                    l.append(g)
                     valid_line_found = True
                     break
                 elif valid_h_i * valid_h_j < 0 and abs(valid_h_i) > epsilon and abs(valid_h_j) > epsilon:
-                    l.append(g)
+                    l.append(h)
                     valid_line_found = True
                     break
         
@@ -217,21 +219,21 @@ def calculate_invariants(As, A_stars):
     if len(l) < 3:
         return None
     
-    l_ij = l[0]
-    l_jk = l[1]
-    l_ik = l[2]
+    l_12 = l[0]
+    l_23 = l[1]
+    l_31 = l[2]
 
-    visualize(ellipses, l_ij, l_ik, l_jk)
+    visualize(ellipses, l_12, l_23, l_31)
 
-    term1 = (l_ij.T @ A_stars[0] @ l_ij).item() * (l_ik.T @ A_stars[0] @ l_ik).item()
-    term2 = (l_ij.T @ A_stars[1] @ l_ij).item() * (l_jk.T @ A_stars[1] @ l_jk).item()
-    term3 = (l_ik.T @ A_stars[2] @ l_ik).item() * (l_jk.T @ A_stars[2] @ l_jk).item()
+    term1 = (l_12.T @ A_stars[0] @ l_12).item() * (l_31.T @ A_stars[0] @ l_31).item()
+    term2 = (l_12.T @ A_stars[1] @ l_12).item() * (l_23.T @ A_stars[1] @ l_23).item()
+    term3 = (l_23.T @ A_stars[2] @ l_23).item() * (l_31.T @ A_stars[2] @ l_31).item()
     if term1 < 0 or term2 < 0 or term3 < 0:
         return None
 
-    J1_val = np.abs(l_ij.T @ A_stars[0] @ l_ik).item() / np.sqrt(term1)
-    J2_val = np.abs(l_ij.T @ A_stars[1] @ l_jk).item() / np.sqrt(term2)
-    J3_val = np.abs(l_ik.T @ A_stars[2] @ l_jk).item() / np.sqrt(term3)
+    J1_val = np.abs(l_12.T @ A_stars[0] @ l_31).item() / np.sqrt(term1)
+    J2_val = np.abs(l_12.T @ A_stars[1] @ l_23).item() / np.sqrt(term2)
+    J3_val = np.abs(l_23.T @ A_stars[2] @ l_31).item() / np.sqrt(term3)
     
     if np.isnan(J1_val) or np.isnan(J2_val) or np.isnan(J3_val):
         return None
