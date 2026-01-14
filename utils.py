@@ -124,15 +124,23 @@ def calculate_invariants(As, A_stars):
 
     def visualize(ellipses, l_ij, l_ik, l_jk):
         # draw A_i, A_j, g, h
+        centers = [ellipse['center'] for ellipse in ellipses]
+        majors = [ellipse['major'] for ellipse in ellipses]
+        minors = [ellipse['minor'] for ellipse in ellipses]
+        angles = [ellipse['angle'] for ellipse in ellipses]
+        
         fig, ax = plt.subplots(figsize=(10, 10))
-        ax.add_patch(Ellipse(ellipses[0][0], 2*ellipses[0][1], 2*ellipses[0][2], angle=ellipses[0][3], color='r', fill=False, label='A_i'))
-        ax.add_patch(Ellipse(ellipses[1][0], 2*ellipses[1][1], 2*ellipses[1][2], angle=ellipses[1][3], color='g', fill=False, label='A_j'))
-        ax.add_patch(Ellipse(ellipses[2][0], 2*ellipses[2][1], 2*ellipses[2][2], angle=ellipses[2][3], color='b', fill=False, label='A_k'))
+        ax.add_patch(Ellipse(centers[0], 2*majors[0], 2*minors[0], angle=angles[0], color='r', fill=False, label='A_i'))
+        ax.add_patch(Ellipse(centers[1], 2*majors[1], 2*minors[1], angle=angles[1], color='g', fill=False, label='A_j'))
+        ax.add_patch(Ellipse(centers[2], 2*majors[2], 2*minors[2], angle=angles[2], color='b', fill=False, label='A_k'))
 
-        x_lim = [min(ellipses[0][0][0]-ellipses[0][1], ellipses[1][0][0]-ellipses[1][1], ellipses[2][0][0]-ellipses[2][1]) - 1, \
-                 max(ellipses[0][0][0]+ellipses[0][1], ellipses[1][0][0]+ellipses[1][1], ellipses[2][0][0]+ellipses[2][1]) + 1]
-        y_lim = [min(ellipses[0][0][1]-ellipses[0][1], ellipses[1][0][1]-ellipses[1][1], ellipses[2][0][1]-ellipses[2][1]) - 1, \
-                 max(ellipses[0][0][1]+ellipses[0][1], ellipses[1][0][1]+ellipses[1][1], ellipses[2][0][1]+ellipses[2][1]) + 1]
+        # x_lim = [min(ellipses[0][0][0]-ellipses[0][1], ellipses[1][0][0]-ellipses[1][1], ellipses[2][0][0]-ellipses[2][1]) - 1, \
+        #          max(ellipses[0][0][0]+ellipses[0][1], ellipses[1][0][0]+ellipses[1][1], ellipses[2][0][0]+ellipses[2][1]) + 1]
+        # y_lim = [min(ellipses[0][0][1]-ellipses[0][1], ellipses[1][0][1]-ellipses[1][1], ellipses[2][0][1]-ellipses[2][1]) - 1, \
+        #          max(ellipses[0][0][1]+ellipses[0][1], ellipses[1][0][1]+ellipses[1][1], ellipses[2][0][1]+ellipses[2][1]) + 1]
+
+        x_lim = [0, 1000]
+        y_lim = [1000, 0]
 
         l1_vec = l_ij.flatten()
         l2_vec = l_ik.flatten()
@@ -162,7 +170,8 @@ def calculate_invariants(As, A_stars):
     l = []
     for i, j in [(0, 1), (1, 2), (0, 2)]:
         A_i, A_j = As[i], As[j]
-        c_i, c_j = np.array([ellipses[i][0][0], ellipses[i][0][1], 1.0]), np.array([ellipses[j][0][0], ellipses[j][0][1], 1.0])
+        c_i = np.array([ellipses[i]['center'][0], ellipses[i]['center'][1], 1.0])
+        c_j = np.array([ellipses[j]['center'][0], ellipses[j]['center'][1], 1.0])
         
         eigs = np.linalg.eigvals(A_j @ np.linalg.inv(-A_i))
 
@@ -212,7 +221,7 @@ def calculate_invariants(As, A_stars):
     l_jk = l[1]
     l_ik = l[2]
 
-    # visualize(ellipses, l_ij, l_ik, l_jk)
+    visualize(ellipses, l_ij, l_ik, l_jk)
 
     term1 = (l_ij.T @ A_stars[0] @ l_ij).item() * (l_ik.T @ A_stars[0] @ l_ik).item()
     term2 = (l_ij.T @ A_stars[1] @ l_ij).item() * (l_jk.T @ A_stars[1] @ l_jk).item()
@@ -331,7 +340,7 @@ def get_ellipse_params(A):
     eigvals = eigvals[idx]
     eigvecs = eigvecs[:, idx]
 
-    f_prime = g + d*x0 + f*y0
+    f_prime = g + 0.5 * (d*x0 + f*y0)
 
     if eigvals[0] < 0 or eigvals[1] < 0 or f_prime > 0:
         return None
@@ -342,4 +351,4 @@ def get_ellipse_params(A):
     if angle < 0:
         angle += 180
 
-    return (x0, y0), a, b, angle
+    return {'center': (x0, y0), 'major': a, 'minor': b, 'angle': angle}

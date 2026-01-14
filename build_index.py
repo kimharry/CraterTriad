@@ -23,7 +23,9 @@ def build_index():
         c1 = craters[comb[0]]
         c2 = craters[comb[1]]
         c3 = craters[comb[2]]
-        
+
+        c1, c2, c3 = sort_clockwise([c1, c2, c3])
+
         d12 = np.linalg.norm(c1['pos'] - c2['pos'])
         d23 = np.linalg.norm(c2['pos'] - c3['pos'])
         d31 = np.linalg.norm(c3['pos'] - c1['pos'])
@@ -40,7 +42,6 @@ def build_index():
             overlap_cnt += 1
             continue
             
-        c1, c2, c3 = sort_clockwise([c1, c2, c3])
         center_lat = (c1['lat'] + c2['lat'] + c3['lat']) / 3
         center_lon = (c1['lon'] + c2['lon'] + c3['lon']) / 3
         r_M = get_center_vector(center_lat, center_lon, r=R_MOON + ALTITUDE)
