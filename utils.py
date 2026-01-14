@@ -31,10 +31,12 @@ def get_TMC(lat, lon):
 
     T_E_M = get_ENU_to_Moon_matrix(p_M)
     e = T_E_M[:, 0]
-    n = T_E_M[:, 1]
+    n = T_E_M[:, 1] * -1
     u = T_E_M[:, 2] * -1
 
-    return np.column_stack([e, n, u])
+    T_M_C = np.column_stack([e, n, u])
+
+    return T_M_C
 
 def get_adjugate(M):
     m00, m01, m02 = M[0, 0], M[0, 1], M[0, 2]
@@ -83,10 +85,6 @@ def get_conic_locus_matrix(theta, a, b, x_c=0, y_c=0):
     # Normalize: det(M) = -1
     scale = abs(det_M) ** (1/3)
     M = M / scale
-    
-    # Ensure det(M) < 0
-    if np.linalg.det(M) > 0:
-        M = -M
 
     return M
 
@@ -96,10 +94,7 @@ def get_disk_quadric(T_E_M, p_M, C):
         p_M: Crater center position in Moon-centered coordinates (3x1)
         C: 2D conic locus matrix representing the crater shape
     """
-    if np.linalg.det(C) < 1e-10:
-        C_star = get_adjugate(C)
-    else:
-        C_star = np.linalg.inv(C)
+    C_star = get_adjugate(C)
     S = np.array([
         [1, 0],
         [0, 1],
@@ -126,6 +121,42 @@ def calculate_invariants(As, A_stars):
         return np.array([[0, -v[2], v[1]],
                          [v[2], 0, -v[0]],
                          [-v[1], v[0], 0]])
+
+    def visualize(ellipses, l_ij, l_ik, l_jk):
+        # draw A_i, A_j, g, h
+        fig, ax = plt.subplots(figsize=(10, 10))
+        ax.add_patch(Ellipse(ellipses[0][0], 2*ellipses[0][1], 2*ellipses[0][2], angle=ellipses[0][3], color='r', fill=False, label='A_i'))
+        ax.add_patch(Ellipse(ellipses[1][0], 2*ellipses[1][1], 2*ellipses[1][2], angle=ellipses[1][3], color='g', fill=False, label='A_j'))
+        ax.add_patch(Ellipse(ellipses[2][0], 2*ellipses[2][1], 2*ellipses[2][2], angle=ellipses[2][3], color='b', fill=False, label='A_k'))
+
+        x_lim = [min(ellipses[0][0][0]-ellipses[0][1], ellipses[1][0][0]-ellipses[1][1], ellipses[2][0][0]-ellipses[2][1]) - 1, \
+                 max(ellipses[0][0][0]+ellipses[0][1], ellipses[1][0][0]+ellipses[1][1], ellipses[2][0][0]+ellipses[2][1]) + 1]
+        y_lim = [min(ellipses[0][0][1]-ellipses[0][1], ellipses[1][0][1]-ellipses[1][1], ellipses[2][0][1]-ellipses[2][1]) - 1, \
+                 max(ellipses[0][0][1]+ellipses[0][1], ellipses[1][0][1]+ellipses[1][1], ellipses[2][0][1]+ellipses[2][1]) + 1]
+
+        l1_vec = l_ij.flatten()
+        l2_vec = l_ik.flatten()
+        l3_vec = l_jk.flatten()
+
+        l1_x_vals = np.array(x_lim)
+        l1_y_vals = (-l1_vec[0] * l1_x_vals - l1_vec[2]) / l1_vec[1]
+        ax.plot(l1_x_vals, l1_y_vals, 'r', label='l1')
+        
+        l2_x_vals = np.array(x_lim)
+        l2_y_vals = (-l2_vec[0] * l2_x_vals - l2_vec[2]) / l2_vec[1]
+        ax.plot(l2_x_vals, l2_y_vals, 'g', label='l2')
+
+        l3_x_vals = np.array(x_lim)
+        l3_y_vals = (-l3_vec[0] * l3_x_vals - l3_vec[2]) / l3_vec[1]
+        ax.plot(l3_x_vals, l3_y_vals, 'b', label='l3')
+
+        ax.set_xlim(x_lim)
+        ax.set_ylim(y_lim)
+        ax.grid(True)
+        ax.legend()
+        # breakpoint()
+        plt.show()
+
 
     ellipses = [get_ellipse_params(A) for A in As]
     l = []
@@ -181,40 +212,7 @@ def calculate_invariants(As, A_stars):
     l_jk = l[1]
     l_ik = l[2]
 
-    # draw A_i, A_j, g, h
-    # fig, ax = plt.subplots(figsize=(10, 10))
-    # ax.add_patch(Ellipse(ellipses[0][0], 2*ellipses[0][1], 2*ellipses[0][2], angle=ellipses[0][3], color='r', fill=False, label='A_i'))
-    # ax.add_patch(Ellipse(ellipses[1][0], 2*ellipses[1][1], 2*ellipses[1][2], angle=ellipses[1][3], color='g', fill=False, label='A_j'))
-    # ax.add_patch(Ellipse(ellipses[2][0], 2*ellipses[2][1], 2*ellipses[2][2], angle=ellipses[2][3], color='b', fill=False, label='A_k'))
-
-    # x_lim = [min(ellipses[0][0][0]-ellipses[0][0][1], ellipses[1][0][0]-ellipses[1][0][1], ellipses[2][0][0]-ellipses[2][0][1]) - 1, \
-    #          max(ellipses[0][0][0]+ellipses[0][0][1], ellipses[1][0][0]+ellipses[1][0][1], ellipses[2][0][0]+ellipses[2][0][1]) + 1]
-    # y_lim = [min(ellipses[0][0][1]-ellipses[0][0][1], ellipses[1][0][1]-ellipses[1][0][1], ellipses[2][0][1]-ellipses[2][0][1]) - 1, \
-    #          max(ellipses[0][0][1]+ellipses[0][0][1], ellipses[1][0][1]+ellipses[1][0][1], ellipses[2][0][1]+ellipses[2][0][1]) + 1]
-
-    # l1_vec = l_ij.flatten()
-    # l2_vec = l_ik.flatten()
-    # l3_vec = l_jk.flatten()
-
-    # l1_x_vals = np.array(x_lim)
-    # l1_y_vals = (-l1_vec[0] * l1_x_vals) / l1_vec[1]
-    # ax.plot(l1_x_vals, l1_y_vals, 'r', label='l1')
-    
-    # l2_x_vals = np.array(x_lim)
-    # l2_y_vals = (-l2_vec[0] * l2_x_vals) / l2_vec[1]
-    # ax.plot(l2_x_vals, l2_y_vals, 'g', label='l2')
-
-    # l3_x_vals = np.array(x_lim)
-    # l3_y_vals = (-l3_vec[0] * l3_x_vals) / l3_vec[1]
-    # ax.plot(l3_x_vals, l3_y_vals, 'b', label='l3')
-
-    # ax.set_xlim(x_lim)
-    # ax.set_ylim(y_lim)
-    # ax.set_aspect('equal')
-    # ax.grid(True)
-    # ax.legend()
-    # # breakpoint()
-    # plt.show()
+    # visualize(ellipses, l_ij, l_ik, l_jk)
 
     term1 = (l_ij.T @ A_stars[0] @ l_ij).item() * (l_ik.T @ A_stars[0] @ l_ik).item()
     term2 = (l_ij.T @ A_stars[1] @ l_ij).item() * (l_jk.T @ A_stars[1] @ l_jk).item()
@@ -263,7 +261,7 @@ def EPS(craters, r):
 
 def proj_db2img(T_M_C, r_M, Q_star, K=K):
     """
-        T_M_C: Moon to Camera transformation matrix
+        T_M_C: Camera to Moon transformation matrix
         r_M: 3D position vector of camera in Moon frame
         Q_star: Disk Quadric from database
 
@@ -285,6 +283,8 @@ def proj_db2img(T_M_C, r_M, Q_star, K=K):
         A /= scale
     
     A = 0.5 * (A + A.T)
+
+    # breakpoint()
     
     return A_star, A
 

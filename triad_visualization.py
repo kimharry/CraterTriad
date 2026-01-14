@@ -60,7 +60,6 @@ def plot_3d_quadric(ax, p_M, T_E_M, a, b, theta, color='b'):
             [normal_start[2], normal_end[2]], color='g', linestyle='--')
 
 
-
 with open('data/filtered_craters_local.pkl', 'rb') as f:
     craters = pickle.load(f)
 
@@ -111,22 +110,21 @@ for comb in combinations(craters, 3):
         continue
 
     # c1, c2, c3
-    fig, ax = plt.subplots(figsize=(10, 10))
+    # fig, ax = plt.subplots(figsize=(10, 10))
     # x_lim = np.array([min(center[0] - major for center, major in zip(centers, majors)), \
     #                   max(center[0] + major for center, major in zip(centers, majors))])
     # y_lim = np.array([min(center[1] - minor for center, minor in zip(centers, minors)), \
     #                   max(center[1] + minor for center, minor in zip(centers, minors))])
-    ax.set_xlim([0, 1000])
-    ax.set_ylim([0, 1000])
-    ax.add_patch(Ellipse(centers[0], majors[0], minors[0], angle=angles[0], fill=False, edgecolor='r'))
-    ax.add_patch(Ellipse(centers[1], majors[1], minors[1], angle=angles[1], fill=False, edgecolor='g'))
-    ax.add_patch(Ellipse(centers[2], majors[2], minors[2], angle=angles[2], fill=False, edgecolor='b'))
-    plt.show()
+    # ax.set_xlim([0, 1000])
+    # ax.set_ylim([0, 1000])
+    # ax.add_patch(Ellipse(centers[0], majors[0], minors[0], angle=angles[0], fill=False, edgecolor='r'))
+    # ax.add_patch(Ellipse(centers[1], majors[1], minors[1], angle=angles[1], fill=False, edgecolor='g'))
+    # ax.add_patch(Ellipse(centers[2], majors[2], minors[2], angle=angles[2], fill=False, edgecolor='b'))
+    # plt.show()
 
-
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, projection='3d')
-    plot_3d_quadric(ax, c1['pos'], c1['T_E_M'], c1['a'], c1['b'], c1['theta'], color='r')
-    plot_3d_quadric(ax, c2['pos'], c2['T_E_M'], c2['a'], c2['b'], c2['theta'], color='g')
-    plot_3d_quadric(ax, c3['pos'], c3['T_E_M'], c3['a'], c3['b'], c3['theta'], color='b')
-    plt.show()
+    # fig = plt.figure(figsize=(10, 10))
+    # ax = fig.add_subplot(111, projection='3d')
+    # plot_3d_quadric(ax, c1['pos'], c1['T_E_M'], c1['a'], c1['b'], c1['theta'], color='r')
+    # plot_3d_quadric(ax, c2['pos'], c2['T_E_M'], c2['a'], c2['b'], c2['theta'], color='g')
+    # plot_3d_quadric(ax, c3['pos'], c3['T_E_M'], c3['a'], c3['b'], c3['theta'], color='b')
+    # plt.show()
