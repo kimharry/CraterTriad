@@ -92,6 +92,7 @@ def validate_pose(detect, match, r_M, T_M_C, sigma_img=1.0):
     if np.isnan(r_M).any() or np.isinf(r_M).any():
         return False
 
+    chi_squares = []
     for k in range(len(match)):
         _, A_proj = proj_db2img(T_M_C, r_M, match[k]['Q_star'])
         y_i, Y_i = conic_to_yY(A_proj)
@@ -109,9 +110,10 @@ def validate_pose(detect, match, r_M, T_M_C, sigma_img=1.0):
 
         chi_square = ga**2 / var
         if chi_square > 13.277 or np.isnan(chi_square) or np.isinf(chi_square): # 99% confidence
-            return False
+            return False, None
+        chi_squares.append(chi_square)
 
-    return True
+    return True, np.mean(chi_squares)
 
 def main(detections, T_M_C):
     """
@@ -152,6 +154,8 @@ def main(detections, T_M_C):
 
         descriptors = np.array(descriptors[:-1])
 
+        best_mean_chi_square = float('inf')
+        best_match = None
         for _ in range(3):
             matches = identify_craters(descriptors)
             if len(matches) == 0:
@@ -160,28 +164,23 @@ def main(detections, T_M_C):
             
             for match in matches:
                 r_M = estimate_pose([A1, A2, A3], match, T_M_C)
-                if validate_pose(detect, match, r_M, T_M_C):
-                    print("Estimated pose:", r_M)
-                    estimated_poses.append(r_M)
+                is_valid, mean_chi_square = validate_pose(detect, match, r_M, T_M_C)
+                if is_valid and mean_chi_square < best_mean_chi_square:
+                    best_mean_chi_square = mean_chi_square
+                    best_match = r_M
             
             descriptors = np.roll(descriptors, 1)
+        
+        if best_match is not None:
+            estimated_poses.append(best_match)
 
     if len(estimated_poses) == 0:
         print("No valid pose found")
         return None
     
-    # return the most frequent pose
     return np.mean(estimated_poses, axis=0)
 
 if __name__ == "__main__":
-    # testing
-    # detections = [
-    #     {'pos': np.array([195.5, 182.5]), 'a': 164.125, 'b': 161.130, 'theta': 0.0}, # lat: 45.91146, lon: 193.59334
-    #     {'pos': np.array([835.5, 415.5]), 'a': 40.5, 'b': 38.5, 'theta': 0.0}, # lat: 45.72357, lon: 194.31649
-    #     {'pos': np.array([978.3, 459.63]), 'a': 46.06, 'b': 45.83, 'theta': np.radians(22.76)}, # lat: 45.68981, lon: 194.47532
-    #     {'pos': np.array([372.48, 677.23]), 'a': 101.835, 'b': 89.0, 'theta': np.radians(97.94)} # lat: 45.51962, lon: 193.78878
-    # ]
-    
     detections = [
         {'pos': np.array([181.0, 171.0]), 'a': 147.0, 'b': 138.985, 'theta': 0.0}, # lat: 45.9009, lon: 193.598 -> 02-1-149335
         {'pos': np.array([752.88, 377.22]), 'a': 37.495, 'b': 35.225, 'theta': np.radians(105.32)}, # lat: 45.7187, lon: 194.319 -> 02-1-149307
@@ -189,8 +188,12 @@ if __name__ == "__main__":
         {'pos': np.array([342.33, 615.2]), 'a': 89.645, 'b': 79.955, 'theta': np.radians(72.89)} # lat: 45.5168, lon: 193.796 -> 02-1-144582
     ]
 
-    lat_avg = np.radians(45.6141) 
-    lon_avg = np.radians(193.99626)
-    T_M_C = get_TMC(lat_avg, lon_avg)
+    lat_gt = np.radians(45.6141) 
+    lon_gt = np.radians(193.99626)
+    T_M_C = get_TMC(lat_gt, lon_gt)
     r_M = main(detections, T_M_C)
     print("\nFinal estimated pose:", r_M)
+
+    r_M_gt = np.array([-1214.613115, -302.75296, 1278.901654]).reshape(3, 1)
+    err_dist = np.linalg.norm(r_M - r_M_gt)
+    print(f"Error distance: {err_dist} km")
