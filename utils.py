@@ -54,7 +54,7 @@ def get_adjugate(M):
 def normalize_vector(v):
     return v / np.linalg.norm(v)
 
-def get_conic_locus_matrix(theta, a, b, x_c=0, y_c=0):
+def get_conic_locus(theta, a, b, x_c=0, y_c=0):
     """
     Convert crater parameters to 2D conic matrix.
     """
@@ -122,17 +122,18 @@ def calculate_invariants(As, A_stars):
                          [v[2], 0, -v[0]],
                          [-v[1], v[0], 0]])
 
-    def visualize(ellipses, l_12, l_23, l_31):
+    def visualize(ellipses, ls):
         # draw A_i, A_j, g, h
         centers = [ellipse['center'] for ellipse in ellipses]
         majors = [ellipse['major'] for ellipse in ellipses]
         minors = [ellipse['minor'] for ellipse in ellipses]
-        angles = [ellipse['angle'] for ellipse in ellipses]
+        angles = [np.degrees(ellipse['angle']) for ellipse in ellipses]
         
         fig, ax = plt.subplots(figsize=(10, 10))
         ax.add_patch(Ellipse(centers[0], 2*majors[0], 2*minors[0], angle=angles[0], color='r', fill=False, label='A_i'))
         ax.add_patch(Ellipse(centers[1], 2*majors[1], 2*minors[1], angle=angles[1], color='g', fill=False, label='A_j'))
-        ax.add_patch(Ellipse(centers[2], 2*majors[2], 2*minors[2], angle=angles[2], color='b', fill=False, label='A_k'))
+        if len(ls) == 3:
+            ax.add_patch(Ellipse(centers[2], 2*majors[2], 2*minors[2], angle=angles[2], color='b', fill=False, label='A_k'))
 
         # x_lim = [min(ellipses[0][0][0]-ellipses[0][1], ellipses[1][0][0]-ellipses[1][1], ellipses[2][0][0]-ellipses[2][1]) - 1, \
         #          max(ellipses[0][0][0]+ellipses[0][1], ellipses[1][0][0]+ellipses[1][1], ellipses[2][0][0]+ellipses[2][1]) + 1]
@@ -142,21 +143,27 @@ def calculate_invariants(As, A_stars):
         x_lim = [0, 1000]
         y_lim = [1000, 0]
 
+        l_12 = ls[0]
         l12_vec = l_12.flatten()
+
+        l_23 = ls[1]
         l23_vec = l_23.flatten()
-        l31_vec = l_31.flatten()
 
         l12_x_vals = np.array(x_lim)
         l12_y_vals = (-l12_vec[0] * l12_x_vals - l12_vec[2]) / l12_vec[1]
         ax.plot(l12_x_vals, l12_y_vals, 'r', label='l12')
-        
+
         l23_x_vals = np.array(x_lim)
         l23_y_vals = (-l23_vec[0] * l23_x_vals - l23_vec[2]) / l23_vec[1]
         ax.plot(l23_x_vals, l23_y_vals, 'g', label='l23')
 
-        l31_x_vals = np.array(x_lim)
-        l31_y_vals = (-l31_vec[0] * l31_x_vals - l31_vec[2]) / l31_vec[1]
-        ax.plot(l31_x_vals, l31_y_vals, 'b', label='l31')
+        if len(ls) == 3:
+            l_31 = ls[2]
+            l31_vec = l_31.flatten()
+        
+            l31_x_vals = np.array(x_lim)
+            l31_y_vals = (-l31_vec[0] * l31_x_vals - l31_vec[2]) / l31_vec[1]
+            ax.plot(l31_x_vals, l31_y_vals, 'b', label='l31')
 
         ax.set_xlim(x_lim)
         ax.set_ylim(y_lim)
@@ -202,8 +209,7 @@ def calculate_invariants(As, A_stars):
                 valid_h_i = np.dot(h.flatten(), c_i)
                 valid_h_j = np.dot(h.flatten(), c_j)
 
-                # breakpoint()
-                # visualize(ellipses, g, h)
+                # visualize(ellipses, [g, h])
                 if valid_g_i * valid_g_j < 0 and abs(valid_g_i) > epsilon and abs(valid_g_j) > epsilon:
                     l.append(g)
                     valid_line_found = True
@@ -223,7 +229,7 @@ def calculate_invariants(As, A_stars):
     l_23 = l[1]
     l_31 = l[2]
 
-    visualize(ellipses, l_12, l_23, l_31)
+    # visualize(ellipses, l_12, l_23, l_31)
 
     term1 = (l_12.T @ A_stars[0] @ l_12).item() * (l_31.T @ A_stars[0] @ l_31).item()
     term2 = (l_12.T @ A_stars[1] @ l_12).item() * (l_23.T @ A_stars[1] @ l_23).item()
@@ -238,7 +244,7 @@ def calculate_invariants(As, A_stars):
     if np.isnan(J1_val) or np.isnan(J2_val) or np.isnan(J3_val):
         return None
     if J1_val < 0.999 or J2_val < 0.999 or J3_val < 0.999:
-        return [J1_val, J2_val, J3_val, False]
+        return [J1_val, J2_val, J3_val, -1]
     
     one_cnt = 0
     if 0.999 <= J1_val <= 1.0:
@@ -300,14 +306,16 @@ def proj_db2img(T_M_C, r_M, Q_star, K=K):
     return A_star, A
 
 def conic_to_yY(A):
-    A_uu = A[:2, :2]
-    A_u1 = A[:2, 2]
-    A_11 = A[2, 2]
-
-    y = -np.linalg.inv(A_uu) @ A_u1
+    params = get_ellipse_params(A)
+    a = params['major']
+    b = params['minor']
+    theta = params['angle']
     
-    mu = A_u1.T @ np.linalg.inv(A_uu) @ A_u1 - A_11
-    Y = (1.0 / mu) * A_uu
+    Y = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]) @ \
+        np.array([[1/a**2, 0], [0, 1/b**2]]) @ \
+        np.array([[np.cos(theta), np.sin(theta)], [-np.sin(theta), np.cos(theta)]])
+    
+    y = np.array(params['center']).reshape(2, 1)
     
     return y, Y
 
@@ -349,8 +357,8 @@ def get_ellipse_params(A):
     
     a = np.sqrt(-f_prime / eigvals[0])
     b = np.sqrt(-f_prime / eigvals[1])
-    angle = np.degrees(np.arctan2(eigvecs[1, 0], eigvecs[0, 0]))
+    angle = np.arctan2(eigvecs[1, 0], eigvecs[0, 0])
     if angle < 0:
-        angle += 180
+        angle += np.pi
 
     return {'center': (x0, y0), 'major': a, 'minor': b, 'angle': angle}

@@ -1,8 +1,7 @@
 import pickle
 import numpy as np
-from utils import sort_clockwise, get_2d_conic_matrix, EPS, calculate_invariants, get_center_vector, proj_db2img, conic_to_yY, d_GA, variance
-from config import T_M_C, K
-import pdb
+from utils import *
+from config import K
 
 def identify_craters(descriptors):
     with open('data/index.pkl', 'rb') as f:
@@ -14,7 +13,7 @@ def identify_craters(descriptors):
     invar_matches = {}
     k = 5
     for index_key in index.keys():
-        invar_matches[index_key] = np.linalg.norm(np.array(index_key) - np.array(descriptors))
+        invar_matches[index_key] = np.linalg.norm(np.array(index_key) - descriptors)
         
     # Sort by distance and return top k
     sorted_invar_matches = dict(sorted(invar_matches.items(), key=lambda x: x[1]))
@@ -28,9 +27,9 @@ def identify_craters(descriptors):
 
 def estimate_pose(detect, match, T_M_C):
     A1, A2, A3 = detect
-    C1 = match[0]['conic_matrix']
-    C2 = match[1]['conic_matrix']
-    C3 = match[2]['conic_matrix']
+    C1 = match[0]['conic_locus']
+    C2 = match[1]['conic_locus']
+    C3 = match[2]['conic_locus']
 
     p_M1 = get_center_vector(match[0]['lat'], match[0]['lon'])
     p_M2 = get_center_vector(match[1]['lat'], match[1]['lon'])
@@ -77,12 +76,13 @@ def estimate_pose(detect, match, T_M_C):
     r_M = np.linalg.pinv(H.T @ H) @ H.T @ y
     return r_M
 
-def validate_pose(match, detect_triad, r_M, T_M_C, sigma_img=1.0):
+def validate_pose(detect, match, r_M, T_M_C, sigma_img=1.0):
     """
+        detect: Current triad of craters (sorted)
         match: Identified crater triad match
-        detect_triad: Current triad of craters (sorted)
         r_M: Estimated camera position
         T_M_C: Moon to Camera transformation matrix
+        sigma_img: Image noise standard deviation
         
         return: True if pose is valid, False otherwise
     """
@@ -92,25 +92,25 @@ def validate_pose(match, detect_triad, r_M, T_M_C, sigma_img=1.0):
     if np.isnan(r_M).any() or np.isinf(r_M).any():
         return False
 
-    for i in range(len(match)):
-        A_proj = proj_db2img(T_M_C, r_M, match[i]['Q_star'])
+    for k in range(len(match)):
+        _, A_proj = proj_db2img(T_M_C, r_M, match[k]['Q_star'])
         y_i, Y_i = conic_to_yY(A_proj)
         
-        y_j = np.array(detect_triad[i]['pos']).T
-        R = np.array([[np.cos(detect_triad[i]['theta']), -np.sin(detect_triad[i]['theta'])],
-                      [np.sin(detect_triad[i]['theta']),  np.cos(detect_triad[i]['theta'])]])
-        Y_j = R @ np.diag([1/detect_triad[i]['a'], 1/detect_triad[i]['b']])
+        y_j = np.array(detect[k]['pos']).reshape(2, 1)
+        a_j = detect[k]['a']
+        b_j = detect[k]['b']
+        theta_j = detect[k]['theta']
+        Y_j = np.array([[np.cos(theta_j), -np.sin(theta_j)], [np.sin(theta_j), np.cos(theta_j)]]) @ \
+              np.array([[1/a_j**2, 0], [0, 1/b_j**2]]) @ \
+              np.array([[np.cos(theta_j), np.sin(theta_j)], [-np.sin(theta_j), np.cos(theta_j)]])
 
         ga = d_GA(y_i, y_j, Y_i, Y_j)
-        var = variance(match[i]['a'], match[i]['b'], sigma_img)
+        var = variance(match[k]['a'], match[k]['b'], sigma_img)
 
         chi_square = ga**2 / var
-        print(f"Crater {i}: Chi-square = {chi_square}")
         if chi_square > 13.277 or np.isnan(chi_square) or np.isinf(chi_square): # 99% confidence
-            print()
             return False
 
-    print()
     return True
 
 def main(detections, T_M_C):
@@ -124,47 +124,54 @@ def main(detections, T_M_C):
     combs = EPS(detections, 3)
     # combs = combs[::-1]
 
+    estimated_poses = []
     for comb in combs:
-        detect_triad = sort_clockwise(comb)
+        detect = sort_clockwise(comb)
 
         # overlap check
-        if np.linalg.norm(detect_triad[0]['pos'] - detect_triad[1]['pos']) < detect_triad[0]['a'] + detect_triad[1]['a'] or \
-           np.linalg.norm(detect_triad[1]['pos'] - detect_triad[2]['pos']) < detect_triad[1]['a'] + detect_triad[2]['a'] or \
-           np.linalg.norm(detect_triad[2]['pos'] - detect_triad[0]['pos']) < detect_triad[2]['a'] + detect_triad[0]['a']:
+        if np.linalg.norm(detect[0]['pos'] - detect[1]['pos']) < detect[0]['a'] + detect[1]['a'] or \
+           np.linalg.norm(detect[1]['pos'] - detect[2]['pos']) < detect[1]['a'] + detect[2]['a'] or \
+           np.linalg.norm(detect[2]['pos'] - detect[0]['pos']) < detect[2]['a'] + detect[0]['a']:
             continue
 
-        A1 = get_2d_conic_matrix(detect_triad[0]['theta'], detect_triad[0]['a'], detect_triad[0]['b'])
-        A2 = get_2d_conic_matrix(detect_triad[1]['theta'], detect_triad[1]['a'], detect_triad[1]['b'])
-        A3 = get_2d_conic_matrix(detect_triad[2]['theta'], detect_triad[2]['a'], detect_triad[2]['b'])
+        A1 = get_conic_locus(detect[0]['theta'], detect[0]['a'], detect[0]['b'], x_c=detect[0]['pos'][0], y_c=detect[0]['pos'][1])
+        A2 = get_conic_locus(detect[1]['theta'], detect[1]['a'], detect[1]['b'], x_c=detect[1]['pos'][0], y_c=detect[1]['pos'][1])
+        A3 = get_conic_locus(detect[2]['theta'], detect[2]['a'], detect[2]['b'], x_c=detect[2]['pos'][0], y_c=detect[2]['pos'][1])
 
-        pos1 = np.linalg.inv(K) @ np.hstack([detect_triad[0]['pos'], 1])
-        pos2 = np.linalg.inv(K) @ np.hstack([detect_triad[1]['pos'], 1])
-        pos3 = np.linalg.inv(K) @ np.hstack([detect_triad[2]['pos'], 1])
+        A1_star = get_adjugate(A1)
+        A2_star = get_adjugate(A2)
+        A3_star = get_adjugate(A3)
         
+        descriptors = calculate_invariants([A1, A2, A3], [A1_star, A2_star, A3_star])
+        if descriptors is None:
+            print("Invariants calculation failed: None")
+            continue
+        elif descriptors[-1] == -1:
+            print("Invariants calculation failed: -1")
+            continue
+
+        descriptors = np.array(descriptors[:-1])
+
         for _ in range(3):
-            # pdb.set_trace()
-            descriptors = calculate_invariants([A1, A2, A3], [pos1, pos2, pos3])
-            if descriptors == None:
-                print("Invariants calculation failed")
-                continue
             matches = identify_craters(descriptors)
             if len(matches) == 0:
-                # print("No matches found")
+                print("No matches found")
                 break
             
-            # pdb.set_trace()
             for match in matches:
                 r_M = estimate_pose([A1, A2, A3], match, T_M_C)
-                # print("Estimated pose:", r_M)
-                if validate_pose(match, detect_triad, r_M, T_M_C):
-                    return r_M
+                if validate_pose(detect, match, r_M, T_M_C):
+                    print("Estimated pose:", r_M)
+                    estimated_poses.append(r_M)
             
-            # print("Not a valid pose \n")
-            A1, A2, A3 = A2, A3, A1
-            pos1, pos2, pos3 = pos2, pos3, pos1
+            descriptors = np.roll(descriptors, 1)
 
-    print("No valid pose found")
-    return None
+    if len(estimated_poses) == 0:
+        print("No valid pose found")
+        return None
+    
+    # return the most frequent pose
+    return np.mean(estimated_poses, axis=0)
 
 if __name__ == "__main__":
     # testing
@@ -182,5 +189,8 @@ if __name__ == "__main__":
         {'pos': np.array([342.33, 615.2]), 'a': 89.645, 'b': 79.955, 'theta': np.radians(72.89)} # lat: 45.5168, lon: 193.796 -> 02-1-144582
     ]
 
+    lat_avg = np.radians(45.6141) 
+    lon_avg = np.radians(193.99626)
+    T_M_C = get_TMC(lat_avg, lon_avg)
     r_M = main(detections, T_M_C)
-    print("Estimated pose:", r_M)
+    print("\nFinal estimated pose:", r_M)

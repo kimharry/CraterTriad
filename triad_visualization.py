@@ -103,7 +103,7 @@ for comb in combinations(craters, 3):
         centers.append(params['center'])
         majors.append(params['major'])
         minors.append(params['minor'])
-        angles.append(params['angle'])
+        angles.append(np.degrees(params['angle']))
 
     if len(centers) != 3:
         continue

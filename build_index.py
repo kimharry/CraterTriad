@@ -57,7 +57,7 @@ def build_index():
 
         if descriptor is None:
             err_cnt += 1
-        elif descriptor[-1] == False:
+        elif descriptor[-1] == -1:
             if descriptor[0] < 1:
                 less_than_1.append(descriptor[0])
             if descriptor[1] < 1:
@@ -74,8 +74,7 @@ def build_index():
     print(f"Overlap Filtered: {overlap_cnt}")
     print(f"Invariants Calculation Failed: {err_cnt}")
     print(f"Less than 1: {less_than_1_cnt}")
-    print(f"One cnt: {len(one_cnt)}")
-    breakpoint()
+    print(f"One cnt: {sum(one_cnt)}")
 
     with open('data/index.pkl', 'wb') as f:
         pickle.dump(index, f)

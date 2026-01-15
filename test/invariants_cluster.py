@@ -1,48 +1,60 @@
 import pickle
 import numpy as np
-import pandas as pd
-from tqdm import tqdm
-from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
-import pdb
 
 def main():
-    with open('data/triads.pkl', 'rb') as f:
-        triads = pickle.load(f)
-
-    index_map = pd.read_csv('data/crater_index_db.csv')
+    with open('data/filtered_craters_local.pkl', 'rb') as f:
+        craters = pickle.load(f)
+    with open('data/index.pkl', 'rb') as f:
+        index = pickle.load(f)
     
     centroids = []
     descs = []
-    for t in tqdm(triads):
-        coords = np.array([[c['pos'][0], c['pos'][1]] for c in t['geoms']])
+    for desc, ids in index.items():
+        coords = np.array([craters[id]['pos'] for id in ids])
         centroid = np.mean(coords, axis=0)
         centroids.append(centroid)
-        # pdb.set_trace()
-        desc = index_map[(index_map['id1'] == t['id1']) & (index_map['id2'] == t['id2']) & (index_map['id3'] == t['id3'])]\
-                    [['desc_0', 'desc_1', 'desc_2', 'desc_3', 'desc_4', 'desc_5', 'desc_6']].iloc[0].to_list()
-        
+
         descs.append(desc)
 
     centroids = np.array(centroids)
+
+    centroids = centroids / np.linalg.norm(centroids, axis=0, keepdims=True)
     descs = np.array(descs)
-    descs_tsne = TSNE(n_components=3).fit_transform(descs)
 
-    # fig, ax1 = plt.subplots(figsize=(10, 6))
-    # ax1.scatter(invs_tsne[:, 0], invs_tsne[:, 1], color='b')
-    
-    fig = plt.figure(figsize=(10, 6))
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(descs_tsne[:, 0], descs_tsne[:, 1], descs_tsne[:, 2], c=centroids[:, 0], cmap='viridis', s=1)
+    # fig = plt.figure(figsize=(10, 10))
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(descs[:, 0], descs[:, 1], descs[:, 2], c=centroids[:, 0], cmap='viridis', s=1)
+    # plt.show()
+
+    # fig = plt.figure(figsize=(10, 10))
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(descs[:, 0], descs[:, 1], descs[:, 2], c=centroids[:, 1], cmap='viridis', s=1)
+    # plt.show()
+
+    # fig = plt.figure(figsize=(10, 10))
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(descs[:, 0], descs[:, 1], descs[:, 2], c=centroids[:, 2], cmap='viridis', s=1)
+    # plt.show()
+
+    fig, ax = plt.subplots(3, 1, figsize=(10, 15))
+    ax[0].hist(descs[:, 0], bins=50, color='r', alpha=0.5, label='Invariant 1')
+    ax[1].hist(descs[:, 1], bins=50, color='g', alpha=0.5, label='Invariant 2')
+    ax[2].hist(descs[:, 2], bins=50, color='b', alpha=0.5, label='Invariant 3')
+
+    ax[0].set_ylim(0, 31000)
+    ax[0].set_xlabel('Invariant 1')
+    ax[0].set_ylabel('Frequency')
+    ax[0].legend()
+    ax[1].set_xlabel('Invariant 2')
+    ax[1].set_ylabel('Frequency')
+    ax[1].legend()
+    ax[1].set_ylim(0, 30000)
+    ax[2].set_xlabel('Invariant 3')
+    ax[2].set_ylabel('Frequency')
+    ax[2].legend()
+    ax[2].set_ylim(0, 30000)
     plt.show()
-    # plt.scatter(centroids[:][0], centroids[:][1], color='r')
-    # plt.subplot()
-
-    fig = plt.figure(figsize=(10, 6))
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(descs_tsne[:, 0], descs_tsne[:, 1], descs_tsne[:, 2], c=centroids[:, 1], cmap='viridis', s=1)
-    plt.show()
-
 
 if __name__ == '__main__':
     main()
