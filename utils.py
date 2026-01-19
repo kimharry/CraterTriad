@@ -26,17 +26,29 @@ def get_ENU_to_Moon_matrix(p_M):
 
     return np.column_stack([e, n, u])
 
-def get_TMC(lat, lon):
+def get_TMC(lat, lon, roll=0, pitch=np.pi, yaw=np.pi):
     p_M = get_center_vector(lat, lon, r=R_MOON + ALTITUDE)
-
     T_E_M = get_ENU_to_Moon_matrix(p_M)
-    e = T_E_M[:, 0]
-    n = T_E_M[:, 1] * -1
-    u = T_E_M[:, 2] * -1
 
-    T_M_C = np.column_stack([e, n, u])
+    R_r = np.array([
+        [1, 0, 0],
+        [0, np.cos(roll), np.sin(roll)],
+        [0, -np.sin(roll), np.cos(roll)]
+    ])
+    R_p = np.array([
+        [np.cos(pitch), 0, -np.sin(pitch)],
+        [0, 1, 0],
+        [np.sin(pitch), 0, np.cos(pitch)]
+    ])
+    R_y = np.array([
+        [np.cos(yaw), np.sin(yaw), 0],
+        [-np.sin(yaw), np.cos(yaw), 0],
+        [0, 0, 1]
+    ])
 
-    return T_M_C
+    R_EC = R_r @ R_p @ R_y
+
+    return R_EC @ T_E_M.T
 
 def get_adjugate(M):
     m00, m01, m02 = M[0, 0], M[0, 1], M[0, 2]
@@ -284,7 +296,7 @@ def proj_db2img(T_M_C, r_M, Q_star, K=K):
 
         Return: projected 2d conic envelope matrix, conic locus matrix
     """
-    P_M_C = K @ T_M_C.T @ np.hstack([np.eye(3), -r_M.reshape(3, 1)])
+    P_M_C = K @ T_M_C @ np.hstack([np.eye(3), -r_M.reshape(3, 1)])
     A_star = P_M_C @ Q_star @ P_M_C.T
     A_star = 0.5 * (A_star + A_star.T)
 

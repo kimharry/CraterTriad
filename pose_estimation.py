@@ -2,14 +2,9 @@ import pickle
 import numpy as np
 from utils import *
 from config import K
+import time
 
-def identify_craters(descriptors):
-    with open('data/index.pkl', 'rb') as f:
-        index = pickle.load(f)
-    
-    with open('data/filtered_craters_local.pkl', 'rb') as f:
-        craters = pickle.load(f)
-
+def identify_craters(index, craters, descriptors):
     invar_matches = {}
     k = 5
     for index_key in index.keys():
@@ -31,11 +26,11 @@ def estimate_pose(detect, match, T_M_C):
     C2 = match[1]['conic_locus']
     C3 = match[2]['conic_locus']
 
-    p_M1 = get_center_vector(match[0]['lat'], match[0]['lon'])
-    p_M2 = get_center_vector(match[1]['lat'], match[1]['lon'])
-    p_M3 = get_center_vector(match[2]['lat'], match[2]['lon'])
+    p_M1 = get_center_vector(match[0]['lat'], match[0]['lon']).reshape(3, 1)
+    p_M2 = get_center_vector(match[1]['lat'], match[1]['lon']).reshape(3, 1)
+    p_M3 = get_center_vector(match[2]['lat'], match[2]['lon']).reshape(3, 1)
 
-    k = np.array([0, 0, 1]).T
+    k = np.array([0, 0, 1]).reshape(3, 1)
     
     B1 = T_M_C.T @ K.T @ A1 @ K @ T_M_C
     B2 = T_M_C.T @ K.T @ A2 @ K @ T_M_C
@@ -71,9 +66,10 @@ def estimate_pose(detect, match, T_M_C):
         S.T @ T_E1_M.T @ B1 @ p_M1 - s_hat_1 * S.T @ C1 @ k,
         S.T @ T_E2_M.T @ B2 @ p_M2 - s_hat_2 * S.T @ C2 @ k,
         S.T @ T_E3_M.T @ B3 @ p_M3 - s_hat_3 * S.T @ C3 @ k
-    ]).reshape(-1, 1)
+    ])
     
-    r_M = np.linalg.pinv(H.T @ H) @ H.T @ y
+    # breakpoint()
+    r_M = np.linalg.pinv(H) @ y
     return r_M
 
 def validate_pose(detect, match, r_M, T_M_C, sigma_img=1.0):
@@ -115,8 +111,10 @@ def validate_pose(detect, match, r_M, T_M_C, sigma_img=1.0):
 
     return True, np.mean(chi_squares)
 
-def main(detections, T_M_C):
+def main(index, craters, detections, T_M_C):
     """
+        index: Index of craters
+        craters: Craters database
         detections: includes 'pos(x, y)', 'a', 'b', 'theta'
         T_M_C: Moon to Camera Transformation Matrix (T_C_M: Camera to Moon Transformation Matrix, T_C_M = T_M_C.T)
     """
@@ -124,7 +122,6 @@ def main(detections, T_M_C):
         return None
 
     combs = EPS(detections, 3)
-    # combs = combs[::-1]
 
     estimated_poses = []
     for comb in combs:
@@ -146,10 +143,10 @@ def main(detections, T_M_C):
         
         descriptors = calculate_invariants([A1, A2, A3], [A1_star, A2_star, A3_star])
         if descriptors is None:
-            print("Invariants calculation failed: None")
+            # print("Invariants calculation failed: None")
             continue
         elif descriptors[-1] == -1:
-            print("Invariants calculation failed: -1")
+            # print("Invariants calculation failed: -1")
             continue
 
         descriptors = np.array(descriptors[:-1])
@@ -157,9 +154,9 @@ def main(detections, T_M_C):
         best_mean_chi_square = float('inf')
         best_match = None
         for _ in range(3):
-            matches = identify_craters(descriptors)
+            matches = identify_craters(index, craters, descriptors)
             if len(matches) == 0:
-                print("No matches found")
+                # print("No matches found")
                 break
             
             for match in matches:
@@ -175,12 +172,18 @@ def main(detections, T_M_C):
             estimated_poses.append(best_match)
 
     if len(estimated_poses) == 0:
-        print("No valid pose found")
+        # print("No valid pose found")
         return None
     
     return np.mean(estimated_poses, axis=0)
 
 if __name__ == "__main__":
+    with open('data/index.pkl', 'rb') as f:
+        index = pickle.load(f)
+    
+    with open('data/filtered_craters_local.pkl', 'rb') as f:
+        craters = pickle.load(f)
+
     detections = [
         {'pos': np.array([181.0, 171.0]), 'a': 147.0, 'b': 138.985, 'theta': 0.0}, # lat: 45.9009, lon: 193.598 -> 02-1-149335
         {'pos': np.array([752.88, 377.22]), 'a': 37.495, 'b': 35.225, 'theta': np.radians(105.32)}, # lat: 45.7187, lon: 194.319 -> 02-1-149307
@@ -191,7 +194,11 @@ if __name__ == "__main__":
     lat_gt = np.radians(45.6141) 
     lon_gt = np.radians(193.99626)
     T_M_C = get_TMC(lat_gt, lon_gt)
-    r_M = main(detections, T_M_C)
+
+    start_time = time.time()
+    r_M = main(index, craters, detections, T_M_C)
+    end_time = time.time()
+    print(f"\nTotal Time: {end_time - start_time:.4f}s")
     print("\nFinal estimated pose:", r_M)
 
     r_M_gt = np.array([-1214.613115, -302.75296, 1278.901654]).reshape(3, 1)
